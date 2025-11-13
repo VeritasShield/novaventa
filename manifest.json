@@ -1,0 +1,20 @@
+{
+  "manifest_version": 3,
+  "name": "Automatización de pedidos Novaventa — Full Plus (Ext)",
+  "version": "3.1.0",
+  "description": "Vista para Docs (HTML/PNG recortado), UI flotante, captura ampliada, totales es-CO y atajos.",
+  "content_scripts": [
+    {
+      "matches": [
+        "https://comercio.novaventa.com.co/nautilusb2bstorefront/nautilus/es/COP/*"
+      ],
+      "css": [
+        "content.css"
+      ],
+      "js": [
+        "dist/content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}

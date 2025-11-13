@@ -1,0 +1,40 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>parsePrice tests</title>
+<body>
+  <pre id="out"></pre>
+  <script src="../src/nv_namespace.js"></script>
+  <script src="../src/utils.js"></script>
+  <script>
+    (function(){
+      const U = NV.utils;
+      const cases = [
+        ['$ 12.345', 12345],
+        ['COP 12.345', 12345],
+        ['12.345,67', 12345.67],
+        ['12,345.67', 12345.67],
+        ['12 345', 12345],
+        ["12'345", 12345],
+        ['12.345.678', 12345678],
+        ['12,345,678', 12345678],
+        ['(12.345)', -12345],
+        ['-12.345', -12345],
+        ['12,34', 12.34],
+        ['12.3', 12.3],
+        ['0', 0],
+        ['', 0],
+      ];
+      const out = document.getElementById('out');
+      function line(s){ out.appendChild(document.createTextNode(s + "\n")); }
+      let pass = 0;
+      cases.forEach(([input, expected]) => {
+        const got = U.parsePrice(input);
+        const ok = Math.abs(got - expected) < 1e-6;
+        if (ok) pass++;
+        line((ok? 'OK   ':'FAIL ') + JSON.stringify(input) + ' => ' + got + ' (expected ' + expected + ')');
+      });
+      line('Passed: ' + pass + '/' + cases.length);
+      console.log('parsePrice tests', { pass, total: cases.length });
+    })();
+  </script>
+</body>

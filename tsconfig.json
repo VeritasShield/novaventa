@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "target": "es2020",
+    "module": "esnext",
+    "allowJs": true,
+    "checkJs": false,
+    "strict": false,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "baseUrl": ".",
+    "typeRoots": ["./types", "./node_modules/@types"],
+    "lib": ["es2020", "dom"],
+    "jsx": "preserve"
+  },
+  "include": [
+    "automation_novaventa",
+    "src/**/*.js",
+    "types/**/*.d.ts"
+  ]
+}
+
