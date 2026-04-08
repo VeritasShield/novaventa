@@ -75,6 +75,8 @@ declare namespace NV {
     function setQueue(products: string[]): void;
     function setCaptured(list: Product[]): void;
     function setFailed(text: string, data: FailedProduct[]): void;
+    function setCurrentEntry(part: Partial<CurrentEntry>): void;
+    function hardReset(): void;
   }
 
   namespace ui {

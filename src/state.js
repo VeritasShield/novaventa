@@ -194,5 +194,23 @@
     st.failed = { text: String(text || ''), data: Array.isArray(data) ? data.slice() : [] };
     S.data = st; saveAggregate(st); stateToLegacy(st);
   };
+  S.setCurrentEntry = function setCurrentEntry(part){
+    const st = S.data || legacyToState();
+    st.currentEntry = Object.assign({}, st.currentEntry || { person: '', qtyFromLine: '1', codeFromLine: '' }, part || {});
+    S.data = st; saveAggregate(st); stateToLegacy(st);
+  };
+  S.hardReset = function hardReset(){
+    const keys = [
+      KEY, 'isMinimized', 'isPinned', 'windowPosition', 'isAddingProducts',
+      'products', 'capturedProducts', 'failedProducts', 'failedProductsData',
+      'currentPerson', 'currentQtyFromLine', 'currentCodeFromLine', 'nv_log_level'
+    ];
+    suspendHook = true;
+    try { keys.forEach(k => localStorage.removeItem(k)); } catch(_) {}
+    suspendHook = false;
+    const st = migrate(legacyToState());
+    S.data = st;
+    saveAggregate(st);
+    stateToLegacy(st);
+  };
 })();
-

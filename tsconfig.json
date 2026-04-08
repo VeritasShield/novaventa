@@ -7,7 +7,6 @@
     "strict": false,
     "skipLibCheck": true,
     "noEmit": true,
-    "baseUrl": ".",
     "typeRoots": ["./types", "./node_modules/@types"],
     "lib": ["es2020", "dom"],
     "jsx": "preserve"
@@ -18,4 +17,3 @@
     "types/**/*.d.ts"
   ]
 }
-

@@ -6,7 +6,9 @@ $filesInOrder = @(
   "src/utils.js",
   "src/renderers.js",
   "src/exporters.js",
-  "automation_novaventa"
+  "src/capture.js",
+  "src/ui.js",
+  "automation_novaventa.js"
 )
 
 if (!(Test-Path -Path "dist")) { New-Item -ItemType Directory -Path "dist" | Out-Null }

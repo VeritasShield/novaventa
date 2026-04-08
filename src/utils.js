@@ -126,7 +126,7 @@
    * @returns {Element|null}
    */
   U.findProductCard = function findProductCard(el) {
-    if (!el) return null;
+    if (!el || typeof el.closest !== 'function') return null;
     return el.closest('.cardproduct, [class*="cardproduct"]') || el.closest('.col-xs-12');
   };
 
@@ -148,6 +148,33 @@
     let anyImg = document.querySelector('img[src*="/images/"], img[src*="cdn"], img[src*=".webp"], img[src*=".jpg"], img[src*=".png"]');
     return anyImg ? (anyImg.getAttribute('data-image') || anyImg.src || '') : '';
   };
+
+  /**
+   * Deduplica lista de productos sumando cantidades
+   */
+  U.dedupeProducts = function dedupeProducts(list, { perPerson = false } = {}) {
+    const map = new Map();
+    const norm = s => String(s||'').trim().replace(/\s+/g,' ');
+    list.forEach(p => {
+      const code = p.code || 'N/A';
+      const person = perPerson ? norm(p.person) : '';
+      const key = perPerson ? `${code}@@${person}` : code;
+      if (map.has(key)) {
+        const acc = map.get(key);
+        acc.quantity += (p.quantity || 1);
+        acc.name ||= p.name;
+        acc.price ||= p.price;
+        acc.catalogPrice ||= p.catalogPrice;
+        acc.image ||= p.image;
+        acc.person = person;
+      } else {
+        map.set(key, { ...p, person, quantity: p.quantity || 1 });
+      }
+    });
+    return map;
+  };
+
+  U.delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
   /**
    * Dibuja texto y retorna ancho

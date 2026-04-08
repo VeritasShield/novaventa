@@ -364,6 +364,69 @@ body{font-family:Arial,Helvetica,sans-serif;margin:16px;background:#fafafa;color
     const url = URL.createObjectURL(blob);
     window.open(url, '_blank', 'noopener,noreferrer');
   };
+
+  /**
+   * Extrae lista de personas, unidades y subtotales en un HTML de formato Tabla 
+   * optimizado para pegar en Excel/Google Sheets.
+   * @param {Map<string, Product>} productMap
+   */
+  X.openSubtotalsTable = function openSubtotalsTable(productMap) {
+    const groups = new Map();
+    let globalTotal = 0; let globalQty = 0;
+
+    productMap.forEach(p => {
+      const person = String(p.person || '(Sin nombre)').trim();
+      const q = Number(p.quantity || 1);
+      const v = (U.parsePrice(p.price) || 0) * q;
+      if (!groups.has(person)) groups.set(person, { name: person, units: 0, value: 0 });
+      const g = groups.get(person);
+      g.units += q; g.value += v;
+      globalQty += q; globalTotal += v;
+    });
+
+    const sortedGroups = Array.from(groups.values()).sort((a,b) => a.name.localeCompare(b.name));
+    const rows = sortedGroups.map(g => `
+      <tr>
+        <td style="padding:8px; border:1px solid #ccc;">${g.name}</td>
+        <td style="padding:8px; border:1px solid #ccc; text-align:center;">${g.units}</td>
+        <td style="padding:8px; border:1px solid #ccc; text-align:right;">${U.toMoney(g.value)}</td>
+      </tr>
+    `).join('');
+
+    const html = `<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><title>Tabla de Subtotales</title>
+<style>
+  body{font-family:Arial,sans-serif;margin:24px;background:#fff;color:#222}
+  table { border-collapse: collapse; width: 100%; max-width: 600px; margin-bottom: 20px; }
+  th { background-color: #f5f5f5; padding: 10px; border: 1px solid #ccc; text-align: left; }
+  .header{display:flex;gap:8px;align-items:center;margin-bottom:12px}
+  .btn{padding:8px 12px;border-radius:8px;border:1px solid #ccc;background:#fff;cursor:pointer}
+</style></head>
+<body>
+  <div class="header">
+    <button class="btn" id="copyBtn">Copiar Tabla</button>
+    <button class="btn" onclick="window.close()">Cerrar</button>
+  </div>
+  <table id="subtotalsTable">
+    <thead><tr><th>Persona</th><th style="text-align:center;">Unidades</th><th style="text-align:right;">Subtotal</th></tr></thead>
+    <tbody>${rows}</tbody>
+    <tfoot><tr style="font-weight:bold; background-color:#f9f9f9;">
+      <td style="padding:8px; border:1px solid #ccc;">TOTAL</td>
+      <td style="padding:8px; border:1px solid #ccc; text-align:center;">${globalQty}</td>
+      <td style="padding:8px; border:1px solid #ccc; text-align:right;">${U.toMoney(globalTotal)}</td>
+    </tr></tfoot>
+  </table>
+  <script>
+    document.getElementById('copyBtn').addEventListener('click', () => {
+      try { const sel = window.getSelection(); const range = document.createRange(); range.selectNodeContents(document.getElementById('subtotalsTable')); sel.removeAllRanges(); sel.addRange(range); document.execCommand('copy'); alert('Tabla copiada al portapapeles. Pégala en Excel o Docs.'); } catch (e) { alert('Error al copiar.'); }
+    });
+  </script>
+</body></html>`;
+
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
   
   // Cache en memoria para conversiones JPEG repetidas
   try {
