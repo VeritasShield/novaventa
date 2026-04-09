@@ -12,15 +12,21 @@
   const LOGP = '[NV TM]';
 
   // ========= Aliases de Módulos Core =========
-  const { waitForBody, parseEntryLine, reportError, delay } = window.NV.utils;
+  const { waitForBody, parseEntryLine, reportError, delay, randomDelay } = window.NV.utils;
   const { get, setUI, setFlags, setQueue, setCaptured, setFailed, setCurrentEntry, init: initState } = window.NV.state;
   const { injectUI, setCooldown, hideCooldown, showCapturedProducts, showFailedProductsDetails } = window.NV.ui;
   const { captureProductData, captureFailedProductData, captureVisibleFromGrid } = window.NV.capture;
 
   // ========= Lógica de Navegación =========
     function processNextProduct() {
+        if (!get().flags.isAddingProducts) return;
         const products = get().queue.products;
-        if (products.length === 0) { handleError('No hay productos para procesar.'); return; }
+        if (products.length === 0) { 
+            setFlags({ isAddingProducts: false });
+            if (window.NV.ui && window.NV.ui.injectUI) window.NV.ui.injectUI(appCallbacks);
+            alert('¡Todos los productos de la cola han sido procesados!');
+            return; 
+        }
 
         const { code, quantity, person } = parseEntryLine(products[0]);
         if (!code) { handleError('Código de producto inválido.'); return; }
@@ -34,6 +40,8 @@
 
   // ========= Agregar al carrito =========
   async function checkForProductButton(attempts = 0) {
+    if (!get().flags.isAddingProducts) return;
+
     if (window.location.href.includes('/homepage')) {
       handleError('Navegación incorrecta, redirigido a la página de inicio.');
       return;
@@ -41,14 +49,15 @@
 
     function __nvFindAddToCartButton(){
       const selectors = [
-        '.js-nautilus-AddtoCart button.btn-primary',
-        'form.add_to_cart_form button.btn-primary',
+        '[data-action="ADD_TO_CART"]',
+        'button[name="addToCart"]',
         'button.js-nautilus-addToCart',
         'button.add-to-cart',
-        'button[name="addToCart"]',
-        '[data-action="ADD_TO_CART"]',
-        '.product-details button.btn-primary',
-        '.product-main button.btn-primary'
+        'form.add_to_cart_form button[type="submit"]',
+        'form.add_to_cart_form button',
+        '.js-nautilus-AddtoCart button',
+        '.product-details form button[type="submit"]',
+        '.product-main form button[type="submit"]'
       ];
       for (const sel of selectors) {
         const btn = document.querySelector(sel);
@@ -67,7 +76,7 @@
       if (quantity === '1') {
         captureProductData(1);
         buttonToClick.click();
-        await delay(2500); // Mitigación para redes lentas
+        await randomDelay(2500, 3500); // Rate limiting dinámico (Jitter)
         console.log(LOGP, 'Producto agregado correctamente al carrito.');
         products.shift();
         setQueue(products);
@@ -77,9 +86,9 @@
         captureProductData(quantityInt);
         for (let i = 0; i < quantityInt; i++) {
           buttonToClick.click();
-          await delay(2000); // Wait individual evita Race Conditions e IPs bloqueadas
+          await randomDelay(2000, 3200); // Jitter individual anti-baneos
         }
-        await delay(500);
+        await randomDelay(800, 1500);
         console.log(LOGP, 'Producto agregado correctamente al carrito.');
         products.shift();
         setQueue(products);
@@ -140,6 +149,7 @@
     reportError(errorMessage, { ui: true, level: 'error' });
     console.error(LOGP, errorMessage);
     setFlags({ isAddingProducts: false });
+    if (window.NV.ui && window.NV.ui.injectUI) window.NV.ui.injectUI(appCallbacks);
     alert(errorMessage);
   }
 
@@ -148,12 +158,16 @@
     onStartAdding: (text) => {
       setFlags({ isAddingProducts: true });
       setQueue(text.split('\n').map(s => s.trim()).filter(Boolean));
+      injectUI(appCallbacks);
       processNextProduct();
+    },
+    onStopAdding: () => {
+      setFlags({ isAddingProducts: false });
+      injectUI(appCallbacks);
+      alert('Automatización detenida por el usuario.');
     },
     onClearFailed: () => {
       setFailed('', []);
-      const failedDiv = document.getElementById('failedProductsContainer');
-      if (failedDiv) { failedDiv.innerHTML = '<h3>Productos fallidos:</h3><div id="failedProductsDetails"></div>'; }
       showFailedProductsDetails();
     },
     onClearCaptured: () => {

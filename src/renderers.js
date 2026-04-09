@@ -1,4 +1,4 @@
-﻿(function(){
+﻿﻿(function(){
   const NVNS = (window.NV = window.NV || {});
   NVNS.ui = NVNS.ui || {};
   const UI = NVNS.ui;
@@ -37,7 +37,8 @@
 
     const img = document.createElement('img');
     img.className = 'thumb';
-    img.src = p.image || '';
+    const safeImg = String(p.image || '').trim();
+    img.src = safeImg.toLowerCase().startsWith('javascript:') ? '' : safeImg;
     img.alt = String(p.name || '');
     img.onerror = function(){ this.style.visibility = 'hidden'; };
     item.appendChild(img);
@@ -115,5 +116,3 @@
     return item;
   };
 })();
-
-

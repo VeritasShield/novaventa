@@ -177,6 +177,14 @@
   U.delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
   /**
+   * Retraso dinámico (Jitter) para evadir bloqueos por WAF o Rate Limiting
+   * @param {number} minMs 
+   * @param {number} maxMs 
+   * @returns {Promise<void>}
+   */
+  U.randomDelay = (minMs, maxMs) => U.delay(Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs);
+
+  /**
    * Dibuja texto y retorna ancho
    * @param {CanvasRenderingContext2D} ctx
    * @param {string} txt

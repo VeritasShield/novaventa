@@ -428,6 +428,21 @@ body{font-family:Arial,Helvetica,sans-serif;margin:16px;background:#fafafa;color
     window.open(url, '_blank', 'noopener,noreferrer');
   };
   
+  /**
+   * Exporta el estado actual a un archivo JSON local
+   * @param {object} stateData 
+   */
+  X.exportBackup = function exportBackup(stateData) {
+    const json = JSON.stringify(stateData, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `novaventa-backup-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   // Cache en memoria para conversiones JPEG repetidas
   try {
     const __orig = X.toJPEGDataURL;

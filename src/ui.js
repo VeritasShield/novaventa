@@ -162,6 +162,14 @@
       titleButtons.appendChild(logButton);
     } catch(_) {}
 
+    const exportBtn = document.createElement('button');
+    exportBtn.textContent = 'Exportar';
+    exportBtn.title = 'Exportar historial y configuracion a JSON';
+    exportBtn.addEventListener('click', () => {
+      if (window.NV.exporters && window.NV.exporters.exportBackup) window.NV.exporters.exportBackup(S.get());
+    });
+    titleButtons.appendChild(exportBtn);
+
     const hardResetBtn = document.createElement('button');
     hardResetBtn.textContent = 'Reset';
     hardResetBtn.title = 'Borrar todo el historial y configuracion';
@@ -178,9 +186,25 @@
     const innerContainer = document.createElement('div'); innerContainer.className = 'innerContainer';
     const textareaLabel = document.createElement('label'); textareaLabel.textContent = 'Lista de productos (codigo[-cantidad] persona):'; innerContainer.appendChild(textareaLabel);
     const textarea = document.createElement('textarea'); textarea.id = 'productsInput'; textarea.rows = 6;
-    textarea.value = (st.queue.products || []).join('\n'); innerContainer.appendChild(textarea);
-    const btn = document.createElement('button'); btn.id = 'startAdding'; btn.className = 'actionButton'; btn.textContent = 'Agregar productos'; innerContainer.appendChild(btn);
-    const clearFailedBtn = document.createElement('button'); clearFailedBtn.id = 'clearFailedProducts';
+    textarea.value = (st.queue.products || []).join('\n');
+    textarea.disabled = !!st.flags.isAddingProducts;
+    innerContainer.appendChild(textarea);
+
+    const actionButtonsRow = document.createElement('div');
+    actionButtonsRow.style.display = 'flex'; actionButtonsRow.style.gap = '8px'; actionButtonsRow.style.marginTop = '10px';
+
+    const btn = document.createElement('button'); btn.id = 'startAdding'; btn.className = 'actionButton';
+    btn.textContent = 'Agregar productos'; btn.style.marginTop = '0';
+    btn.style.display = st.flags.isAddingProducts ? 'none' : 'block';
+
+    const stopBtn = document.createElement('button'); stopBtn.id = 'stopAdding'; stopBtn.className = 'actionButton';
+    stopBtn.textContent = 'Detener automatización'; stopBtn.style.marginTop = '0'; stopBtn.style.backgroundColor = '#d32f2f';
+    stopBtn.style.display = st.flags.isAddingProducts ? 'block' : 'none';
+
+    actionButtonsRow.appendChild(btn); actionButtonsRow.appendChild(stopBtn);
+    innerContainer.appendChild(actionButtonsRow);
+
+    const clearFailedBtn = document.createElement('button'); clearFailedBtn.id = 'clearFailedProducts'; clearFailedBtn.className = 'actionButton'; clearFailedBtn.textContent = 'Limpiar productos fallidos'; innerContainer.appendChild(clearFailedBtn);
     const cooldownBar = document.createElement('div'); cooldownBar.id = 'nvCooldown'; cooldownBar.style.display = 'none'; innerContainer.appendChild(cooldownBar);
     const failedProductsDiv = document.createElement('div'); failedProductsDiv.id = 'failedProductsContainer'; failedProductsDiv.className = 'productsContainer';
     const h3 = document.createElement('h3'); h3.textContent = 'Productos fallidos:'; failedProductsDiv.appendChild(h3);
@@ -194,6 +218,7 @@
     (document.body || document.documentElement).prepend(div);
 
     btn.addEventListener('click', () => callbacks.onStartAdding(textarea.value));
+    stopBtn.addEventListener('click', () => { if (callbacks.onStopAdding) callbacks.onStopAdding(); });
     clearFailedBtn.addEventListener('click', callbacks.onClearFailed);
     clearCapturedBtn.addEventListener('click', callbacks.onClearCaptured);
 

@@ -26,6 +26,8 @@ declare namespace NV {
     function toMoney(n: number | string): string;
     function parseEntryLine(line: string): { code: string; quantity: string; person: string };
     function findProductCard(el: Element | null): Element | null;
+    function delay(ms: number): Promise<void>;
+    function randomDelay(minMs: number, maxMs: number): Promise<void>;
     function findProductImageUrl(ctx: Element | Document): string;
     function drawLine(ctx: CanvasRenderingContext2D, txt: string, x: number, y: number): number;
     function drawWrap(
@@ -51,6 +53,8 @@ declare namespace NV {
     function openPrintableDoc(productMap: Map<string, Product>): Promise<void>;
 
     function openDocsPNG(productMap: Map<string, Product>): Promise<void>;
+    function openSubtotalsTable(productMap: Map<string, Product>): void;
+    function exportBackup(stateData: state.AggregateState): void;
   }
 
   namespace state {
@@ -80,8 +84,32 @@ declare namespace NV {
   }
 
   namespace ui {
+    interface AppCallbacks {
+      onStartAdding: (text: string) => void;
+      onStopAdding?: () => void;
+      onClearFailed: () => void;
+      onClearCaptured: () => void;
+      onInit: () => void;
+      onCaptureVisible?: () => void;
+    }
+
     function renderSummary(totalQty: number, totalValueNumber: number): HTMLDivElement;
-    function renderProductItem(p: Product, index: number, opts?: { type?: 'captured' | 'failed' }): HTMLDivElement;
+    function renderProductItem(p: Product, index: number, opts?: string | { type?: 'captured' | 'failed'; label?: string }): HTMLDivElement;
+    function injectUI(callbacks?: Partial<AppCallbacks>): void;
+    function showCapturedProducts(): void;
+    function showFailedProductsDetails(): void;
+    function setCooldown(message: string, ms?: number, onSkip?: (() => void) | null): void;
+    function hideCooldown(): void;
+    function minimizeWindow(): void;
+    function restoreWindow(callbacks?: Partial<AppCallbacks>): void;
+    function togglePin(): void;
+    function ensureMinimizedBar(callbacks?: Partial<AppCallbacks>): void;
+  }
+
+  namespace capture {
+    function captureProductData(quantity?: number): void;
+    function captureVisibleFromGrid(): void;
+    function captureFailedProductData(): void;
   }
 }
 

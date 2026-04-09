@@ -17,16 +17,16 @@
     });
     if (el) return el;
     el = nodes.find(n => norm(n.getAttribute('data-product-code')||'').includes(t));
-    return el || nodes[0];
+    return el || null;
   }
 
-  function safeInnerText(sel) {
-    const el = document.querySelector(sel);
+  function safeInnerText(ctx, sel) {
+    const el = ctx && typeof ctx.querySelector === 'function' ? ctx.querySelector(sel) : null;
     return el ? (el.textContent || '').trim() : '';
   }
 
   function readQtyFromFormNear(el, defQty) {
-    const form = el?.closest('form') || el?.parentElement?.querySelector('form') ||
+    const form = (typeof el?.closest === 'function' ? el.closest('form') : null) || el?.parentElement?.querySelector('form') ||
                  document.querySelector('form.add_to_cart_form');
     let qty = Math.max(1, parseInt(defQty, 10) || 1);
     if (form) {
@@ -127,8 +127,8 @@
       
       const productData = {
         code: (fullCode.split('_')[0]) || fullCode,
-        name: el?.getAttribute('data-product-name') || safeInnerText('.product-name, h1, .product-details__name') || '',
-        price: el?.getAttribute('data-product-price') || safeInnerText('.price, .product-price, [data-product-price]') || '',
+        name: el?.getAttribute('data-product-name') || safeInnerText(el || document.body, '.product-name, h1, .product-details__name') || '',
+        price: el?.getAttribute('data-product-price') || safeInnerText(el || document.body, '.price, .product-price, [data-product-price]') || '',
         catalogPrice: el?.getAttribute('data-product-catalog-price') || '',
         brand: el?.getAttribute('data-product-brand') || '',
         category: el?.getAttribute('data-product-category') || '',
