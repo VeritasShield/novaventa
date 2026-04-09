@@ -7,9 +7,10 @@ Este documento describe la estructura de directorios y la responsabilidad de cad
 - **`manifest.json`**: Archivo de configuración principal de la extensión para Chrome (Manifest V3). Define permisos, inyección de scripts y CSS.
 - **`content.css`**: Hoja de estilos principal para la UI inyectada (panel flotante, botones, grillas).
 - **`automation_novaventa.js`**: Controlador de orquestación (Script principal heredado). Coordina el bucle de navegación, maneja el observer principal e invoca las acciones de los módulos `UI`, `Capture` y `State`.
-- **`README.md` / `README_extension.md`**: Documentación funcional y técnica de la extensión.
+- **`README.md`**: Documentación central, funcional y técnica de la extensión (Instrucciones, Setup, Arquitectura).
 - **`package.json` / `package-lock.json`**: Ecosistema Node.js (NPM). Define scripts base y dependencias de desarrollo (ej. `esbuild`).
 - **`tsconfig.json`**: Configuración de TypeScript. Proporciona soporte de tipado estático e Intellisense en editores compatibles sin compilar los archivos JS directamente.
+- **`.gitignore`**: Reglas de exclusión de Git para evitar subir módulos pesados (`node_modules`) o binarios al repositorio.
 
 ## 📂 `src/` (Módulos Core)
 Lógica fragmentada y encapsulada. Se exponen bajo el namespace global `window.NV` para evitar colisiones.
@@ -26,11 +27,13 @@ Lógica fragmentada y encapsulada. Se exponen bajo el namespace global `window.N
 
 ### `scripts/` (Empaquetado)
 
-- **`simple-bundle.ps1`**: Script básico de PowerShell que concatena ordenadamente los archivos de la carpeta `src/` y el `automation_novaventa.js` dentro de una función autoejecutable (IIFE).
+- **`build.js`**: Script en Node.js que unifica los módulos, purga codificaciones basura (BOM) y utiliza `esbuild` para generar el binario minificado final.
+- **`deploy.sh`**: Script en Bash (Git Bash) que automatiza el proceso de "fail-fast": compila el proyecto y sincroniza los cambios a GitHub en un solo paso seguro.
+- **`simple-bundle.ps1`**: *(Obsoleto)* Antiguo concatenador de PowerShell.
 
 ### `dist/` (Archivos Compilados)
 
-- **`content.js`**: Archivo resultante generado por el empaquetador. Es el script consolidado final que inyecta Chrome mediante el `manifest.json`.
+- **`content.js`**: Archivo resultante generado por `build.js` y `esbuild`. Es el script minificado, consolidado y optimizado que inyecta Chrome mediante el `manifest.json`.
 
 ### `types/` (Tipado TypeScript)
 

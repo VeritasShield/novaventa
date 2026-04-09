@@ -1,186 +1,97 @@
-# Automatización de pedidos Novaventa — Full Plus (Chrome Extension)
+# Novaventa Full Plus - Chrome Extension
 
-Extensión de Chrome que automatiza la carga de pedidos en el sitio de Novaventa, agrega una interfaz flotante para ingresar códigos, captura productos visibles, muestra panel de productos capturados/fallidos y genera vistas listas para pegar en Google Docs (HTML o PNG recortado).
+![Version](https://img.shields.io/badge/version-3.1.0-blue.svg)
+![Platform](https://img.shields.io/badge/platform-Chrome_|_Edge-green.svg)
+![Build](https://img.shields.io/badge/build-esbuild-ff69b4.svg)
 
-> Nota: Esta extensión no es oficial de Novaventa. Úsala bajo tu propio criterio y respeta los términos de uso del sitio.
+Extensión de Chrome diseñada para automatizar y optimizar la carga masiva de pedidos en la plataforma B2B de Novaventa. Inyecta una interfaz flotante avanzada para el ingreso de códigos en bloque, extracción inteligente de datos (Web Scraping) y generación de reportes listos para Google Docs, Sheets o WhatsApp.
+
+> **⚠️ Nota de Responsabilidad:** Esta extensión no es un producto oficial de Novaventa. Utilízala bajo tu propio criterio y respetando los términos de servicio de la plataforma.
 
 ---
 
-## Características principales
+## ✨ Características Principales
 
-- **Panel flotante** siempre visible (se puede mover, fijar y redimensionar).
-- **Entrada de productos en bloque** con el formato:
-  - `codigo[-cantidad] persona`
-  - Ejemplos:
-    - `36316` (cantidad 1, sin persona)
-    - `36316-3 Ana` (3 unidades para Ana)
-- **Automatización de alta de productos**:
-  - Navega a la página de búsqueda del código.
-  - Busca el botón de “Agregar al carrito” con varios selectores robustos.
-  - Hace clic la cantidad de veces necesaria.
-- **Panel de productos capturados**:
+- **Panel Flotante Interactivo**: UI responsiva inyectada sobre la SPA de Novaventa (arrastrable, redimensionable y minimizable).
+- **Ingreso Masivo de Códigos**: Soporta el formato inteligente `codigo[-cantidad] persona` (ej. `36316-3 Ana`). Es tolerante a errores tipográficos y puntuación extra.
+- **Automatización Anti-Bloqueos**: Algoritmos de navegación asíncrona con *Jitter* (retrasos aleatorios) para emular comportamiento humano y evitar bloqueos por WAF o Rate Limiting.
+- **Extracción de Datos (Scraping)**:
   - Muestra tarjetas con imagen, código, nombre, persona, precio, categoría y oferta.
-  - Totales (unidades y valor) arriba de la lista.
-  - Orden por nombre o precio (asc/desc).
-  - Botones:
-    - “Abrir vista para Docs (HTML)” — genera una página HTML lista para copiar en Google Docs.
-    - “Copiar para Docs (PNG)” — genera PNG recortados por producto (pensado para Docs/Slides).
-    - “Reintentar fallidos → cola” — reinyecta códigos fallidos a la cola.
-    - “Capturar productos visibles” — captura productos del grid actual.
-- **Panel de productos fallidos**:
-  - Muestra tarjetas similares a las de capturados, con etiqueta “Fallido X” y motivo.
-  - Orden por nombre o precio (asc/desc).
-  - Botón “Limpiar productos fallidos”.
-- **Atajos de teclado**:
-  - `Alt + C` — Capturar productos visibles en el grid.
-  - `Alt + R` — Reiniciar posición y tamaño del panel.
-- **Persistencia de estado**:
-  - Recuerda si el panel está minimizado o fijado.
-  - Recuerda posición y tamaño de la ventana.
-  - Guarda cola de productos, capturados y fallidos entre recargas.
+- **Exportación Profesional**:
+  - **Google Docs (HTML)**: Tarjetas limpias listas para copiar.
+  - **Google Docs (PNG)**: Imágenes procesadas en alta calidad mediante Canvas.
+  - **Tabla de Subtotales**: Formato optimizado para Excel/Google Sheets.
+  - **Reportes de Agotados**: Listados de fallidos diseñados para el cliente final (sin precios internos).
+- **Persistencia Total**: Estado gestionado en `localStorage`. Sobrevive a recargas accidentales, manteniendo la cola, capturados, fallidos y posiciones de la UI.
+- **Atajos de Teclado**:
+  - `Alt + C`: Capturar productos visibles en la cuadrícula actual.
+  - `Alt + R`: Reiniciar (Hard Reset) de posición de interfaz.
 
 ---
 
-## Requisitos
+## 🚀 Requisitos
 
-- Google Chrome (o navegador compatible con extensiones Chrome, como Edge).
-- Sistema operativo con PowerShell (para generar el bundle desde código fuente). En Windows ya viene incluido.
-
----
-
-## Instalación (usuario final, desde código)
-
-1. **Clonar o descargar** este repositorio.
-2. **Generar el bundle** de contenido:
-   - Abre una consola en la carpeta del proyecto.
-   - Ejecuta:
-     - `powershell ./scripts/simple-bundle.ps1`
-   - Esto generará el archivo `dist/content.js` que Chrome usará como content script.
-3. **Cargar la extensión en Chrome**:
-   - Abre `chrome://extensions` en la barra de direcciones.
-   - Activa el **Modo desarrollador** (arriba a la derecha).
-   - Haz clic en **“Cargar descomprimida”**.
-   - Selecciona la carpeta raíz del proyecto (donde está `manifest.json`).
-4. **Probar**:
-   - Navega a la página de Novaventa compatible, por ejemplo:
-     - `https://comercio.novaventa.com.co/nautilusb2bstorefront/nautilus/es/COP/*`
-   - Deberías ver el panel flotante “Automatizacion de Pedidos”.
+- Navegador basado en Chromium (Google Chrome, Microsoft Edge, Brave).
+- Node.js (v18+) instalado en tu sistema local para compilar el código.
+- Terminal compatible (Git Bash, PowerShell, ZSH).
 
 ---
 
-## Uso básico
+## 🛠️ Instalación y Compilación
 
-### Abrir/cerrar panel
+Para instalar la extensión desde el código fuente, sigue estos pasos:
 
-- El panel aparece en la parte superior izquierda la primera vez.
-- Puedes moverlo arrastrando la barra de título.
-- Botones en la barra:
-  - `Fijar/Desfijar`: fija la posición respecto a la ventana o al documento.
-  - `Minimizar`: oculta el panel y muestra una barra “Abrir panel de productos” abajo a la izquierda.
-- Para volver a abrirlo, haz clic en “Abrir panel de productos”.
+1. **Clona el repositorio:**
+   ```bash
+   git clone https://github.com/VeritasShield/novaventa.git
+   cd novaventa
+   ```
 
-### Ingresar productos
+2. **Instala las dependencias (esbuild):**
+   ```bash
+   npm install
+   ```
 
-- En “Lista de productos (codigo[-cantidad] persona):” escribe uno por línea.
-- Ejemplos:
-  - `36316`
-  - `36316-3 Ana`
-  - `44834-2 Juan`
-- Pulsa **“Agregar productos”**.
-- El script empezará a navegar y añadir productos al carrito uno por uno.
+3. **Construye la extensión (Bundle):**
+   ```bash
+   npm run build
+   ```
+   *Esto generará el archivo optimizado `dist/content.js`.*
 
-### Ver productos capturados
-
-- En el panel derecho verás “Productos capturados” con tarjetas por producto (deduplicadas por código/persona).
-- Puedes ordenar por nombre o precio.
-- Botones disponibles:
-  - **“Abrir vista para Docs (HTML)”**: abre una página con tarjetas listas para copiar/pegar en Docs.
-  - **“Copiar para Docs (PNG)”**: abre una página con PNG recortados por producto.
-  - **“Reintentar fallidos → cola”**: toma los códigos fallidos y los vuelve a poner en la cola.
-  - **“Capturar productos visibles”**: captura productos de la cuadrícula actual (útil cuando ya tienes productos en pantalla).
-- **“Limpiar productos capturados”**: vacía la lista de capturados (no toca los fallidos).
-
-### Ver productos fallidos
-
-- En la parte izquierda, sección “Productos fallidos”.
-- Muestra las tarjetas de los productos que no se pudieron agregar al carrito, con la información que se haya podido capturar (imagen, nombre, precio, etc.).
-- Controles de orden: nombre, precio asc/desc (igual que capturados).
-- Botón **“Limpiar productos fallidos”**: elimina tanto el texto de códigos fallidos como los datos detallados.
-
-### Atajos útiles
-
-- `Alt + C`: captura productos visibles en el grid.
-- `Alt + R`: restablece posición y tamaño del panel.
+4. **Carga la extensión en Chrome:**
+   - Ve a `chrome://extensions/`
+   - Activa el **Modo desarrollador** (esquina superior derecha).
+   - Haz clic en **Cargar descomprimida** y selecciona la carpeta raíz del proyecto.
 
 ---
 
-## Estructura del proyecto
+## 📚 Guía de Uso Rápido
 
-- `manifest.json`
-  - Manifiesto MV3 de la extensión, apunta a `dist/content.js` como content script y a `content.css` como estilos.
-- `content.css`
-  - Estilos del panel flotante, barra minimizada y listas.
-- `automation_novaventa`
-  - Script original (Tampermonkey) con la lógica principal de la automatización.
-- `src/`
-  - `nv_namespace.js`: inicializa el namespace global `NV`.
-  - `utils.js`: utilidades (parseo de precios, helpers DOM, logging y errores).
-  - `state.js`: store centralizado en `localStorage` con migración desde claves legacy.
-  - `renderers.js`: funciones de render UI (`renderSummary`, `renderProductItem`).
-  - `exporters.js`: generación de vistas HTML/PNG para Google Docs.
-- `scripts/simple-bundle.ps1`
-  - Script que concatena los archivos fuente en orden y genera `dist/content.js`.
-- `dist/content.js`
-  - Bundle final que Chrome inyecta como content script.
-- `types/nv.d.ts`
-  - Declaraciones de tipos para tooling/TypeScript (Product, FailedProduct, NV.utils, etc.).
+1. Navega a `https://comercio.novaventa.com.co/nautilusb2bstorefront/nautilus/es/COP/*`.
+2. El panel flotante aparecerá automáticamente.
+3. En la caja de texto, pega tu lista de pedidos.
+4. Haz clic en **Agregar Productos**.
+5. *(Opcional)* Si notas un error, pulsa **Detener Automatización**.
+6. Usa los botones de exportación para generar los reportes finales al terminar.
 
 ---
 
-## Desarrollo
+## 🏗️ Arquitectura (SOLID)
 
-### Dev vs bundle
-
-- Para desarrollo rápido, puedes apuntar el `manifest.json` directamente a los archivos de `src/` + `automation_novaventa` creando un `manifest.dev.json`.
-- Para “producción” o uso diario, es más simple usar el bundle `dist/content.js`.
-
-### Regenerar el bundle
-
-- Cada vez que cambies archivos en `src/` o `automation_novaventa`, ejecuta:
-  - `powershell ./scripts/simple-bundle.ps1`
-- Luego recarga la extensión en `chrome://extensions`.
-
-### Tipos y pruebas simples
-
-- Tipos TS: ver `types/nv.d.ts`.
-- Hay una página de pruebas simple para `parsePrice` en `tests/parsePrice.spec.html` (se abre en el navegador y muestra resultados en pantalla/console).
+La extensión utiliza Vanilla JS modularizado con un entorno de compilación moderno.
+- `src/state.js`: Gestor de estado (SSoT) y persistencia segura.
+- `src/ui.js`: Controladores visuales, MutatonObservers reactivos y lógica del DOM inyectado.
+- `src/capture.js`: Lógica de Scraping, abstracción de selectores de Novaventa.
+- `src/exporters.js`: Lógica de generación de Canvas (PNG) y reportes HTML.
+- `automation_novaventa.js`: Controlador de orquestación y bucle lógico principal.
+- `scripts/build.js`: Compilador nativo en Node.js que unifica e invoca `esbuild`.
 
 ---
 
-## Seguridad, límites y advertencias
+## 🛡️ Comandos de Desarrollo
 
-- La extensión automatiza clics y navegación sobre la página de Novaventa.
-- No evita cambios en el frontend de Novaventa; si cambian clases o estructura, puede dejar de funcionar.
-- No envía datos a ningún servidor externo; todo el estado se guarda en `localStorage` del navegador.
-- Úsala solo en tu cuenta, revisa siempre el carrito final antes de confirmar el pedido.
-
----
-
-## FAQ rápida
-
-**¿Por qué a veces hay fallidos aunque el producto exista?**  
-Puede que el botón de “Agregar al carrito” no esté presente (por ejemplo, si estás en una vista de grid o si el producto está agotado). En ese caso, el producto se marca como fallido y aparece en el panel de fallidos.
-
-**¿Por qué no veo imágenes en algunos fallidos?**  
-Los datos de fallidos se capturan “a la mejor esfuerzo” según lo que haya en el DOM en ese momento. Si la página no tiene la imagen disponible o está protegida, el script deja ese campo vacío.
-
-**¿Cómo actualizo a una nueva versión del código?**  
-Haz `git pull` (o vuelve a descargar), ejecuta `powershell ./scripts/simple-bundle.ps1` y recarga la extensión.
-
----
-
-## Contribuir
-
-- Si quieres mejorar el script (nuevas vistas, mejor manejo de errores, más selectores para botones, etc.), abre un issue o PR.
-- Antes de enviar cambios, ejecuta el bundler y prueba en la página real para asegurarte de que el panel se abre, los productos se agregan y las vistas de Docs funcionan.
-
+| Comando | Descripción |
+|---------|-------------|
+| `npm run build` | Compila el código fuente en `dist/content.js`. |
+| `npm run deploy` | Compila el código, crea un commit automático y lo sube a la rama `main` en GitHub. |
+| `npm run release` | Compila y genera un empaquetado `novaventa-release.zip` listo para publicar en la Web Store. |
