@@ -113,11 +113,13 @@
     const s = String(line||'').trim();
     if (!s) return { code:'', quantity:'1', person:'' };
 
-    let m = s.match(/^(\S+?)\s*-\s*(\d+)(?:\s+(.*))?$/);
-    if (m) return { code:m[1].trim(), quantity:(m[2]||'1').trim(), person:(m[3]||'').trim() };
+    const clean = str => String(str || '').replace(/[.,;:]+$/, '').trim();
+
+    let m = s.match(/^(\S+?)\s*-\s*(\d+)(?:\s*(.*))?$/);
+    if (m) return { code: clean(m[1]), quantity: clean(m[2]) || '1', person: clean(m[3]) };
 
     m = s.match(/^(\S+)(?:\s+(.*))?$/);
-    return { code:(m?.[1]||'').trim(), quantity:'1', person:(m?.[2]||'').trim() };
+    return { code: clean(m?.[1]), quantity: '1', person: clean(m?.[2]) };
   };
 
   /**
