@@ -10,7 +10,7 @@
     "build": "node scripts/build.js",
     "deploy": "bash ./scripts/deploy.sh",
     "release": "npm run build && powershell -Command \"Compress-Archive -Path manifest.json, content.css, dist -DestinationPath novaventa-release.zip -Force\"",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "vitest run"
   },
   "repository": {
     "type": "git",
@@ -25,6 +25,7 @@
   },
   "homepage": "https://github.com/bemaisama/novaventa#readme",
   "devDependencies": {
-    "esbuild": "^0.28.0"
+    "esbuild": "^0.28.0",
+    "vitest": "^3.2.4"
   }
 }

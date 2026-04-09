@@ -1,5 +1,6 @@
 (function(){
-  const NVNS = (window.NV = window.NV || {});
+  const _global = typeof window !== 'undefined' ? window : global;
+  const NVNS = (_global.NV = _global.NV || {});
   NVNS.utils = NVNS.utils || {};
   const U = NVNS.utils;
   const LOGP = NVNS.LOGP || '[NV TM]';
@@ -283,4 +284,7 @@
       else console.debug(prefix, ...args);
     } catch(_) {}
   };
+
+  // Exportación compatible con Node.js para Testing Automatizado
+  if (typeof module !== 'undefined' && module.exports) module.exports = U;
 })();
