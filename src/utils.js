@@ -174,6 +174,10 @@
         acc.price ||= p.price;
         acc.catalogPrice ||= p.catalogPrice;
         acc.image ||= p.image;
+        acc.brand ||= p.brand;
+        acc.category ||= p.category;
+        acc.variant ||= p.variant;
+        acc.offerType ||= p.offerType;
         acc.person = person;
       } else {
         map.set(key, { ...p, person, quantity: p.quantity || 1 });

@@ -6,6 +6,7 @@ declare interface Product {
   price?: string | number;
   catalogPrice?: string | number;
   category?: string;
+  brand?: string;
   variant?: string;
   offerType?: string;
   quantity: number;
@@ -55,6 +56,7 @@ declare namespace NV {
     function openDocsPNG(productMap: Map<string, Product>): Promise<void>;
     function openSubtotalsTable(productMap: Map<string, Product>): void;
     function exportBackup(stateData: state.AggregateState): void;
+    function openFailedReport(productMap: Map<string, Product>): Promise<void>;
   }
 
   namespace state {

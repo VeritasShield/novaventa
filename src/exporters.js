@@ -171,8 +171,7 @@
     });
 
     const norm = s => String(s||'').trim().replace(/\s+/g,' ');
-    let allCaptured = [];
-    try { allCaptured = JSON.parse(localStorage.getItem('capturedProducts')) || []; } catch (_) {}
+    const allCaptured = (window.NV && window.NV.state) ? window.NV.state.get().capturedProducts : [];
 
     const groups = new Map();
     allCaptured.forEach(p => {
@@ -441,6 +440,78 @@ body{font-family:Arial,Helvetica,sans-serif;margin:16px;background:#fafafa;color
     a.download = `novaventa-backup-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  /**
+   * Vista de reporte de productos agotados para clientes (HTML/PNG híbrido)
+   * @param {Map<string, Product>} productMap
+   */
+  X.openFailedReport = async function openFailedReport(productMap) {
+    let totalQty = 0;
+    const groups = new Map();
+    
+    productMap.forEach(p => { 
+      totalQty += (p.quantity || 1); 
+      const pname = String(p.person || '').trim().replace(/\s+/g,' ') || '(Sin nombre)';
+      if (!groups.has(pname)) groups.set(pname, { name: pname, items: [] });
+      groups.get(pname).items.push(p);
+    });
+
+    const buildCardHTML = async (p) => {
+      const jpgSrc = p.image ? await X.toJPEGDataURL(p.image, 88, 88, { scale: 1.8, quality: 0.92 }) : '';
+      return `
+<div class="card" style="display:grid;grid-template-columns:88px 1fr;gap:8px;padding:8px;border:1px solid #f5c6c6;border-radius:10px;background:#fffafA;">
+  <img src="${jpgSrc}" width="88" height="88" onerror="this.style.visibility='hidden'"
+       style="width:88px;height:88px;object-fit:cover;border-radius:8px;border:1px solid #fcc;background:#fff;">
+  <div>
+    <p style="margin:0;line-height:1.15;font-size:13px;color:#333;">
+      <strong>Código:</strong> ${p.code || ''} ${p.quantity>1?`<strong style="color:#c00">X${p.quantity}</strong>`:''}
+      <br><strong>Nombre:</strong> ${(p.name||'')}
+      <br><span style="display:inline-block;margin-top:4px;padding:2px 6px;background:#fee;color:#c00;border-radius:4px;font-size:11px;font-weight:bold;">Agotado / No disponible</span>
+    </p>
+  </div>
+</div>`;
+    };
+
+    let bodyGridHTML = '';
+    if (groups.size > 0 && Array.from(groups.keys()).some(k => k !== '(Sin nombre)')) {
+      const sections = [];
+      const orderedGroups = Array.from(groups.values()).sort((a,b) => a.name.localeCompare(b.name));
+      for (const g of orderedGroups) {
+        const cards = [];
+        for (const p of g.items) cards.push(await buildCardHTML(p));
+        sections.push(`
+<section class="person-section" style="margin:12px 0 8px 0;">
+  <p class="person-h" style="margin:0 0 6px 0;line-height:1.15;font-size:14px;font-weight:700;color:#c00;">${g.name}</p>
+  <div class="grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:8px;">${cards.join('\n')}</div>
+</section>`);
+      }
+      bodyGridHTML = sections.join('\n');
+    } else {
+      const cards = [];
+      for (const [, p] of productMap) cards.push(await buildCardHTML({ ...p, person: '' }));
+      bodyGridHTML = `<div class="grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:8px;">${cards.join('\n')}</div>`;
+    }
+
+    const html = `<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><title>Reporte de Agotados</title>
+<style>
+html,body,div,section,p{margin:0;padding:0} *{box-sizing:border-box}
+body{font-family:Arial,sans-serif;margin:16px;background:#fafafa;color:#222;line-height:1.15}
+.header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;gap:8px;flex-wrap:wrap}
+.header .btn{padding:6px 10px;border-radius:8px;border:1px solid #ccc;background:#fff;cursor:pointer}
+@media print {.header{display:none}}
+</style></head><body>
+  <div class="header">
+    <div><strong style="color:#c00;font-size:18px;">Reporte de Productos Agotados</strong></div>
+    <div><button class="btn" id="copy">Copiar para WhatsApp/Docs</button></div>
+  </div>
+  <div id="content"><p style="margin-bottom:12px;font-size:14px;"><strong>Total de productos no disponibles:</strong> ${totalQty}</p>${bodyGridHTML}</div>
+  <script>document.getElementById('copy').addEventListener('click', () => { try{ const sel = window.getSelection(); const range = document.createRange(); range.selectNodeContents(document.getElementById('content')); sel.removeAllRanges(); sel.addRange(range); document.execCommand('copy'); alert('Copiado. Ahora pégalo en WhatsApp o Docs.'); } catch(e) { alert('Error al copiar.'); } });<\/script>
+</body></html>`;
+    const blob = new Blob([html], {type:'text/html;charset=utf-8'});
+    const url = URL.createObjectURL(blob);
+    window.open(url, '_blank', 'noopener,noreferrer');
   };
 
   // Cache en memoria para conversiones JPEG repetidas

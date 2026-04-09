@@ -100,7 +100,7 @@
   UI.setCooldown = function setCooldown(message, ms = 1500, onSkip = null) {
     const bar = document.getElementById('nvCooldown');
     if (!bar) return;
-    while (bar.firstChild) bar.removeChild(bar.firstChild);
+    bar.replaceChildren();
     const span = document.createElement('span'); span.textContent = String(message || ''); bar.appendChild(span);
     if (onSkip) {
       const sp = document.createElement('span'); sp.textContent = '  '; bar.appendChild(sp);
@@ -120,7 +120,7 @@
 
   UI.hideCooldown = function hideCooldown() {
     const bar = document.getElementById('nvCooldown');
-    if (bar) { bar.style.display = 'none'; while (bar.firstChild) bar.removeChild(bar.firstChild); }
+    if (bar) { bar.style.display = 'none'; bar.replaceChildren(); }
   };
 
   UI.injectUI = function injectUI(callbacks) {
@@ -295,7 +295,7 @@
     if (appCallbacks && appCallbacks.onCaptureVisible) btnCapture.onclick = appCallbacks.onCaptureVisible;
     controls.appendChild(btnCapture);
 
-    capturedProductsDiv.innerHTML = '';
+    capturedProductsDiv.replaceChildren();
     capturedProductsDiv.appendChild(controls);
 
     const productMap = U.dedupeProducts(capturedProducts, { perPerson: true });
@@ -314,7 +314,7 @@
     if (!container) return;
     
     let details = S.get().failed.data.slice();
-    while (container.firstChild) container.removeChild(container.firstChild);
+    container.replaceChildren();
     const h3 = document.createElement('h3'); h3.textContent = 'Productos fallidos:'; container.appendChild(h3);
     
     const controls = document.createElement('div');
@@ -328,6 +328,17 @@
       { value: 'price_desc', text: 'Precio (desc)' }
     ].forEach(o => { const op = document.createElement('option'); op.value = o.value; op.textContent = o.text; sortSelect.appendChild(op); });
     controls.appendChild(sortSelect); container.appendChild(controls);
+
+    const btnReport = document.createElement('button');
+    btnReport.className = 'actionButton'; btnReport.textContent = 'Generar Reporte de Agotados';
+    btnReport.onclick = async () => {
+      if (window.NV.exporters && window.NV.exporters.openFailedReport) {
+        btnReport.textContent = 'Generando...';
+        await window.NV.exporters.openFailedReport(U.dedupeProducts(details, { perPerson: true }));
+        btnReport.textContent = 'Generar Reporte de Agotados';
+      }
+    };
+    controls.appendChild(btnReport);
     
     const detailsDiv = document.createElement('div'); 
     detailsDiv.id = 'failedProductsDetails'; 

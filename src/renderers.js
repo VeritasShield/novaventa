@@ -37,6 +37,8 @@
 
     const img = document.createElement('img');
     img.className = 'thumb';
+    img.loading = 'lazy';
+    img.decoding = 'async';
     const safeImg = String(p.image || '').trim();
     img.src = safeImg.toLowerCase().startsWith('javascript:') ? '' : safeImg;
     img.alt = String(p.name || '');
