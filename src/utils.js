@@ -54,7 +54,13 @@
 
     // Both separators: assume es-CO (dot thousands, comma decimal)
     if (hasDot && hasComma) {
-      s = s.replace(/\./g, '').replace(',', '.');
+      if (lastDot > lastComma) {
+        // Formato US (12,345.67) -> Comas son miles, punto es decimal
+        s = s.replace(/,/g, '');
+      } else {
+        // Formato CO/EU (12.345,67) -> Puntos son miles, coma es decimal
+        s = s.replace(/\./g, '').replace(/,/g, '.');
+      }
       return toNum(s);
     }
 
@@ -65,7 +71,7 @@
         s = s.replace(/,/g, '');
         return toNum(s);
       } else {
-        s = s.replace(',', '.');
+        s = s.replace(/,/g, '.');
         return toNum(s);
       }
     }
@@ -245,6 +251,7 @@
       }
       const toast = document.createElement('div');
       toast.className = 'nv-toast';
+      toast.style.marginBottom = '8px'; // Asegura separación limpia en múltiples errores
       toast.textContent = String(message || 'Error');
       host.appendChild(toast);
       setTimeout(() => { try { toast.remove(); } catch(_) {} }, Math.max(1000, timeoutMs|0));
