@@ -1,8 +1,8 @@
 {
   "name": "novaventa",
-  "version": "3.1.1",
+  "version": "3.1.2",
   "description": "Extensión de Chrome que automatiza la carga de pedidos en el sitio de Novaventa, agrega una interfaz flotante para ingresar códigos, captura productos visibles, muestra panel de productos capturados/fallidos y genera vistas listas para pegar en Google Docs (HTML o PNG recortado).",
-  "main": "automation_novaventa.js",
+  "main": "automation_novaventa.ts",
   "directories": {
     "test": "tests"
   },
@@ -10,6 +10,7 @@
   "scripts": {
     "build": "vite build",
     "deploy": "bash scripts/deploy.sh",
+    "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
   "repository": {
@@ -24,6 +25,8 @@
   },
   "homepage": "https://github.com/bemaisama/novaventa#readme",
   "devDependencies": {
+    "@types/tampermonkey": "^5.0.4",
+    "typescript": "^5.4.5",
     "vite": "^5.0.0",
     "vite-plugin-monkey": "^3.0.0",
     "vitest": "^3.2.4"

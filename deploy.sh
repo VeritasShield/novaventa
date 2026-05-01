@@ -19,6 +19,9 @@ fi
 echo -e "${YELLOW}ℹ Verificando dependencias...${NC}"
 npm install --no-audit --no-fund --silent
 
+echo -e "${YELLOW}[1.5/6] 🔍 Ejecutando análisis estático de tipos (Typecheck)...${NC}"
+npm run typecheck
+
 echo -e "${YELLOW}[1/6] 🧪 Ejecutando pruebas unitarias (Fail-Fast)...${NC}"
 npm run test
 

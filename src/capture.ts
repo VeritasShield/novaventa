@@ -4,10 +4,10 @@ import { showCapturedProducts, showFailedProductsDetails } from './ui.js';
 
 const LOGP = '[NV TM]';
 
-  function findProductElementForCode(targetCode) {
+  function findProductElementForCode(targetCode: string) {
     const nodes = Array.from(document.querySelectorAll('.js-nautilus-AddtoCart, [data-product-code]'));
     if (!nodes.length) return null;
-    const norm = s => String(s||'').toLowerCase();
+    const norm = (s: string | null) => String(s||'').toLowerCase();
     const t = norm(targetCode||'');
     let el = nodes.find(n => {
       const v = norm(n.getAttribute('data-product-code') || '');
@@ -18,17 +18,17 @@ const LOGP = '[NV TM]';
     return el || null;
   }
 
-  function safeInnerText(ctx, sel) {
+  function safeInnerText(ctx: Element | Document | null, sel: string) {
     const el = ctx && typeof ctx.querySelector === 'function' ? ctx.querySelector(sel) : null;
     return el ? (el.textContent || '').trim() : '';
   }
 
-  function readQtyFromFormNear(el, defQty) {
+  function readQtyFromFormNear(el: Element | null, defQty: number | string) {
     const form = (typeof el?.closest === 'function' ? el.closest('form') : null) || el?.parentElement?.querySelector('form') ||
                  document.querySelector('form.add_to_cart_form');
-    let qty = Math.max(1, parseInt(defQty, 10) || 1);
+    let qty = Math.max(1, parseInt(String(defQty), 10) || 1);
     if (form) {
-      const qtyInput = form.querySelector('input.qtyList, input[name="qty"]');
+      const qtyInput = form.querySelector<HTMLInputElement>('input.qtyList, input[name="qty"]');
       if (qtyInput) {
         const n = parseInt(qtyInput.value, 10);
         if (!isNaN(n) && n > qty) qty = n;
@@ -38,7 +38,7 @@ const LOGP = '[NV TM]';
   }
 
 export function captureProductData(quantity = 1) {
-    const st = get();
+    const st = get()!;
     const personFromLine = st.currentEntry.person || '';
     const qtyFromLineRaw = st.currentEntry.qtyFromLine;
     const codeFromLine = st.currentEntry.codeFromLine || '';
@@ -55,7 +55,7 @@ export function captureProductData(quantity = 1) {
           document.querySelector('form.add_to_cart_form');
 
     if (form) {
-        const qtyInput = form.querySelector('input.qtyList, input[name="qty"]');
+        const qtyInput = form.querySelector<HTMLInputElement>('input.qtyList, input[name="qty"]');
         if (qtyInput) {
             const n = parseInt(qtyInput.value, 10);
             if (!isNaN(n) && n > qty) qty = n;
@@ -84,7 +84,7 @@ export function captureProductData(quantity = 1) {
 
 export function captureVisibleFromGrid() {
     const cards = document.querySelectorAll('.js-nautilus-AddtoCart');
-    let capturedProducts = get().capturedProducts.slice();
+    let capturedProducts = get()!.capturedProducts.slice();
     let added = 0;
 
     cards.forEach(card => {
@@ -118,7 +118,7 @@ export function captureVisibleFromGrid() {
 
 export function captureFailedProductData() {
     try {
-      const st = get();
+      const st = get()!;
       const personFromLine = st.currentEntry.person || '';
       const qtyFromLineRaw = st.currentEntry.qtyFromLine || '1';
       const codeFromLine = st.currentEntry.codeFromLine || '';

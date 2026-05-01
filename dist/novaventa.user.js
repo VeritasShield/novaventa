@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Automatización de Pedidos Novaventa — Full Plus (TM)
 // @namespace    http://tampermonkey.net/
-// @version      3.1.1
+// @version      3.1.2
 // @author
 // @description  Vista para Docs (HTML/PNG recortado), UI flotante, captura ampliada, totales es-CO y atajos.
 // @license      ISC
@@ -142,7 +142,7 @@
       const key = perPerson ? `${code}@@${person}` : code;
       if (map.has(key)) {
         const acc = map.get(key);
-        acc.quantity += p.quantity || 1;
+        acc.quantity += Number(p.quantity || 1);
         acc.name || (acc.name = p.name);
         acc.price || (acc.price = p.price);
         acc.catalogPrice || (acc.catalogPrice = p.catalogPrice);
@@ -153,7 +153,7 @@
         acc.offerType || (acc.offerType = p.offerType);
         acc.person = person;
       } else {
-        map.set(key, { ...p, person, quantity: p.quantity || 1 });
+        map.set(key, { ...p, person, quantity: Number(p.quantity || 1) });
       }
     });
     return map;
@@ -470,15 +470,15 @@
           st.failed.data = removed ? [] : JSON.parse(String(value || "[]")) || [];
           break;
         case "currentPerson":
-          if (!st.currentEntry) st.currentEntry = {};
+          if (!st.currentEntry) st.currentEntry = { person: "", qtyFromLine: "1", codeFromLine: "" };
           st.currentEntry.person = String(value || "");
           break;
         case "currentQtyFromLine":
-          if (!st.currentEntry) st.currentEntry = {};
+          if (!st.currentEntry) st.currentEntry = { person: "", qtyFromLine: "1", codeFromLine: "" };
           st.currentEntry.qtyFromLine = String(value || "1");
           break;
         case "currentCodeFromLine":
-          if (!st.currentEntry) st.currentEntry = {};
+          if (!st.currentEntry) st.currentEntry = { person: "", qtyFromLine: "1", codeFromLine: "" };
           st.currentEntry.codeFromLine = String(value || "");
           break;
         default:
@@ -495,6 +495,7 @@
       if (!_Storage.prototype.__nvHooked) {
         Object.defineProperty(_Storage.prototype, "__nvHooked", { value: true, writable: false });
         const newSet = function(key, val) {
+          if (!orig.setItem) return;
           const r = orig.setItem.call(this, key, val);
           try {
             handleLegacyWrite(key, val, false);
@@ -504,6 +505,7 @@
           return r;
         };
         const newRemove = function(key) {
+          if (!orig.removeItem) return;
           const r = orig.removeItem.call(this, key);
           try {
             handleLegacyWrite(key, "", true);
@@ -790,6 +792,7 @@
     c.width = outW;
     c.height = outH;
     const ctx = c.getContext("2d");
+    if (!ctx) throw new Error("Failed to get 2D context");
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
     ctx.fillStyle = bg;
@@ -819,6 +822,7 @@
     canvas.width = W;
     canvas.height = H;
     const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("Failed to get 2D context");
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, W, H);
     const imgX = PAD, imgY = PAD;
@@ -882,6 +886,7 @@
     out.width = Math.max(1, Math.round(sw));
     out.height = Math.max(1, Math.round(sh));
     const octx = out.getContext("2d");
+    if (!octx) throw new Error("Failed to get 2D context");
     octx.fillStyle = "#ffffff";
     octx.fillRect(0, 0, out.width, out.height);
     octx.drawImage(canvas, sx, sy, sw, sh, 0, 0, out.width, out.height);
@@ -958,7 +963,7 @@
       bodyGridHTML = sections.join("\n");
     } else {
       const itemsArr = Array.from(productMap.values());
-      const cards = await Promise.all(itemsArr.map((p, i) => buildCardHTML({ ...p }, i + 1)));
+      const cards = await Promise.all(itemsArr.map((p, i) => buildCardHTML(p, i + 1)));
       bodyGridHTML = `<div class="grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:8px;">${cards.join("\n")}</div>`;
     }
     const perPersonHTML = perPersonList.length ? `
@@ -1137,7 +1142,7 @@ body{font-family:Arial,Helvetica,sans-serif;margin:16px;background:#fafafa;color
     a.href = url;
     a.download = `novaventa-backup-${(/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-")}.json`;
     a.click();
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 100);
   }
   async function openFailedReport(productMap) {
     let totalQty = 0;
@@ -1177,7 +1182,7 @@ body{font-family:Arial,Helvetica,sans-serif;margin:16px;background:#fafafa;color
       bodyGridHTML = sections.join("\n");
     } else {
       const itemsArr = Array.from(productMap.values());
-      const cards = await Promise.all(itemsArr.map((p) => buildCardHTML({ ...p })));
+      const cards = await Promise.all(itemsArr.map((p) => buildCardHTML(p)));
       bodyGridHTML = `<div class="grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:8px;">${cards.join("\n")}</div>`;
     }
     const html = `<!doctype html>
@@ -1331,7 +1336,7 @@ body{font-family:Arial,sans-serif;margin:16px;background:#fafafa;color:#222;line
     bar.style.display = "block";
     const t0 = Date.now();
     if (window.__nvCooldownTimer) clearInterval(window.__nvCooldownTimer);
-    window.__nvCooldownTimer = setInterval(() => {
+    window.__nvCooldownTimer = window.setInterval(() => {
       const left = Math.max(0, ms - (Date.now() - t0));
       timerSpan.textContent = ` (reintento en ${Math.ceil(left / 1e3)}s)`;
       if (left <= 0) clearInterval(window.__nvCooldownTimer);
@@ -1357,6 +1362,17 @@ body{font-family:Arial,sans-serif;margin:16px;background:#fafafa;color:#222;line
     }
     if (document.getElementById("productsInputContainer")) {
       ensureMinimizedBar(callbacks);
+      const st2 = get();
+      const isAdding = !!(st2 == null ? void 0 : st2.flags.isAddingProducts);
+      const ta = document.getElementById("productsInput");
+      if (ta) {
+        ta.disabled = isAdding;
+        if (document.activeElement !== ta) ta.value = ((st2 == null ? void 0 : st2.queue.products) || []).join("\n");
+      }
+      const startBtn = document.getElementById("startAdding");
+      if (startBtn) startBtn.style.display = isAdding ? "none" : "block";
+      const stopBtn2 = document.getElementById("stopAdding");
+      if (stopBtn2) stopBtn2.style.display = isAdding ? "block" : "none";
       setTimeout(() => {
         try {
           window.__nvUiObserverPaused = false;
@@ -1513,12 +1529,22 @@ body{font-family:Arial,sans-serif;margin:16px;background:#fafafa;color:#222;line
     resizeHandle.addEventListener("mousedown", onResizeMouseDown);
     div.appendChild(resizeHandle);
     (document.body || document.documentElement).prepend(div);
-    btn.addEventListener("click", () => callbacks.onStartAdding(textarea.value));
-    stopBtn.addEventListener("click", () => {
-      if (callbacks.onStopAdding) callbacks.onStopAdding();
+    btn.addEventListener("click", () => {
+      var _a2;
+      return (_a2 = callbacks.onStartAdding) == null ? void 0 : _a2.call(callbacks, textarea.value);
     });
-    clearFailedBtn.addEventListener("click", callbacks.onClearFailed);
-    clearCapturedBtn.addEventListener("click", callbacks.onClearCaptured);
+    stopBtn.addEventListener("click", () => {
+      var _a2;
+      return (_a2 = callbacks.onStopAdding) == null ? void 0 : _a2.call(callbacks);
+    });
+    clearFailedBtn.addEventListener("click", () => {
+      var _a2;
+      return (_a2 = callbacks.onClearFailed) == null ? void 0 : _a2.call(callbacks);
+    });
+    clearCapturedBtn.addEventListener("click", () => {
+      var _a2;
+      return (_a2 = callbacks.onClearCaptured) == null ? void 0 : _a2.call(callbacks);
+    });
     if (callbacks.onInit) callbacks.onInit();
     setTimeout(() => {
       try {
@@ -1716,7 +1742,7 @@ body{font-family:Arial,sans-serif;margin:16px;background:#fafafa;color:#222;line
   function readQtyFromFormNear(el, defQty) {
     var _a2;
     const form = (typeof (el == null ? void 0 : el.closest) === "function" ? el.closest("form") : null) || ((_a2 = el == null ? void 0 : el.parentElement) == null ? void 0 : _a2.querySelector("form")) || document.querySelector("form.add_to_cart_form");
-    let qty = Math.max(1, parseInt(defQty, 10) || 1);
+    let qty = Math.max(1, parseInt(String(defQty), 10) || 1);
     if (form) {
       const qtyInput = form.querySelector('input.qtyList, input[name="qty"]');
       if (qtyInput) {
@@ -1825,7 +1851,8 @@ body{font-family:Arial,sans-serif;margin:16px;background:#fafafa;color:#222;line
   }
   const LOGP = "[NV TM]";
   function processNextProduct() {
-    if (!get().flags.isAddingProducts) return;
+    var _a2;
+    if (!((_a2 = get()) == null ? void 0 : _a2.flags.isAddingProducts)) return;
     const products = get().queue.products;
     if (products.length === 0) {
       setFlags({ isAddingProducts: false });
@@ -1843,7 +1870,8 @@ body{font-family:Arial,sans-serif;margin:16px;background:#fafafa;color:#222;line
     window.location.href = `https://comercio.novaventa.com.co/nautilusb2bstorefront/nautilus/es/COP/search/?text=${encodeURIComponent(code)}`;
   }
   async function checkForProductButton(attempts = 0) {
-    if (!get().flags.isAddingProducts) return;
+    var _a2;
+    if (!((_a2 = get()) == null ? void 0 : _a2.flags.isAddingProducts)) return;
     if (window.location.href.includes("/homepage")) {
       handleError("Navegación incorrecta, redirigido a la página de inicio.");
       return;
@@ -1870,6 +1898,10 @@ body{font-family:Arial,sans-serif;margin:16px;background:#fafafa;color:#222;line
     if (buttonToClick) {
       console.log(LOGP, "Botón encontrado, intentando agregar al carrito.");
       const products = get().queue.products.slice();
+      if (!products.length) {
+        setFlags({ isAddingProducts: false });
+        return;
+      }
       const { code, quantity: quantitySpecified } = parseEntryLine(products[0] || "");
       const quantity = (quantitySpecified || "1").trim();
       if (quantity === "1") {
@@ -1994,7 +2026,8 @@ body{font-family:Arial,sans-serif;margin:16px;background:#fafafa;color:#222;line
       injectUI(appCallbacks);
       setTimeout(() => injectUI(appCallbacks), 1200);
       setTimeout(() => {
-        if (get().flags.isAddingProducts) checkForProductButton();
+        var _a3;
+        if ((_a3 = get()) == null ? void 0 : _a3.flags.isAddingProducts) checkForProductButton();
       }, 1500);
       try {
         window.__nvUiObserverPaused = false;

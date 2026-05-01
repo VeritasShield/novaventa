@@ -2,14 +2,15 @@ import { waitForBody, parseEntryLine, reportError, randomDelay, log } from './sr
 import { get, setUI, setFlags, setQueue, setCaptured, setFailed, setCurrentEntry, init as initState } from './src/state.js';
 import { captureProductData, captureFailedProductData, captureVisibleFromGrid } from './src/capture.js';
 import { injectUI, setCooldown, hideCooldown, showCapturedProducts, showFailedProductsDetails } from './src/ui.js';
+// @ts-ignore
 import './content.css';
 
 const LOGP = '[NV TM]';
 
   // ========= Lógica de Navegación =========
     function processNextProduct() {
-        if (!get().flags.isAddingProducts) return;
-        const products = get().queue.products;
+        if (!get()?.flags.isAddingProducts) return;
+        const products = get()!.queue.products;
         if (products.length === 0) { 
             setFlags({ isAddingProducts: false });
             injectUI(appCallbacks);
@@ -29,14 +30,14 @@ const LOGP = '[NV TM]';
 
   // ========= Agregar al carrito =========
   async function checkForProductButton(attempts = 0) {
-    if (!get().flags.isAddingProducts) return;
+    if (!get()?.flags.isAddingProducts) return;
 
     if (window.location.href.includes('/homepage')) {
       handleError('Navegación incorrecta, redirigido a la página de inicio.');
       return;
     }
 
-    function __nvFindAddToCartButton(){
+    function __nvFindAddToCartButton(): HTMLButtonElement | null {
       const selectors = [
         '[data-action="ADD_TO_CART"]',
         'button[name="addToCart"]',
@@ -49,7 +50,7 @@ const LOGP = '[NV TM]';
         '.product-main form button[type="submit"]'
       ];
       for (const sel of selectors) {
-        const btn = document.querySelector(sel);
+        const btn = document.querySelector<HTMLButtonElement>(sel);
         if (btn && !btn.disabled) return btn;
       }
       return null;
@@ -58,9 +59,14 @@ const LOGP = '[NV TM]';
     if (buttonToClick) {
       console.log(LOGP, 'Botón encontrado, intentando agregar al carrito.');
 
-        const products = get().queue.products.slice();
-        const { code, quantity: quantitySpecified } = parseEntryLine(products[0] || '');
-        const quantity = (quantitySpecified || '1').trim();
+      const products = get()!.queue.products.slice();
+      if (!products.length) {
+        setFlags({ isAddingProducts: false });
+        return;
+      }
+
+      const { code, quantity: quantitySpecified } = parseEntryLine(products[0] || '');
+      const quantity = (quantitySpecified || '1').trim();
 
       if (quantity === '1') {
         captureProductData(1);
@@ -90,10 +96,10 @@ const LOGP = '[NV TM]';
         try {
           setCooldown(`Buscando Botón (intento ${attempts+1}/10)`, 1500, () => {
             try {
-              const products = get().queue.products.slice();
+              const products = get()!.queue.products.slice();
               const skipped = products.shift();
               setQueue(products);
-              const st = get();
+              const st = get()!;
               setFailed((st.failed.text || '') + (skipped || '') + '\n', st.failed.data);
               try { captureFailedProductData(); } catch(e) { log('warn', 'Failed to capture skipped product data', e); }
               reportError(`Producto saltado: ${skipped||''}`, { ui: true, level: 'warn', timeoutMs: 3000 });
@@ -114,11 +120,11 @@ const LOGP = '[NV TM]';
           reportError('No se encontró el botón de Agregar al carrito. ¿Estás en la página de detalle?', { ctx: hints, ui: true, level: 'warn', timeoutMs: 7000 });
         } catch(e) { log('debug', 'Failed to generate hints for error report', e); }
 
-        const products = get().queue.products.slice();
+        const products = get()!.queue.products.slice();
         const failedProduct = products.shift();
         setQueue(products);
 
-        const st = get();
+        const st = get()!;
         const failedText = (st.failed.text || '') + (failedProduct || '') + '\n';
         setFailed(failedText, st.failed.data);
 
@@ -132,7 +138,7 @@ const LOGP = '[NV TM]';
   }
 
   // ========= Errores =========
-  function handleError(errorMessage) {
+  function handleError(errorMessage: string) {
     reportError(errorMessage, { ui: true, level: 'error' });
     console.error(LOGP, errorMessage);
     setFlags({ isAddingProducts: false });
@@ -141,10 +147,10 @@ const LOGP = '[NV TM]';
   }
 
   // App callbacks for UI modularity
-  const appCallbacks = {
-    onStartAdding: (text) => {
+  const appCallbacks: AppCallbacks = {
+    onStartAdding: (text: string) => {
       setFlags({ isAddingProducts: true });
-      setQueue(text.split('\n').map(s => s.trim()).filter(Boolean));
+      setQueue(text.split('\n').map((s: string) => s.trim()).filter(Boolean));
       injectUI(appCallbacks);
       processNextProduct();
     },
@@ -179,7 +185,7 @@ const LOGP = '[NV TM]';
       // segundo intento por si la SPA hace swaps de DOM al inicio
       setTimeout(() => injectUI(appCallbacks), 1200);
 
-      setTimeout(() => { if (get().flags.isAddingProducts) checkForProductButton(); }, 1500);
+      setTimeout(() => { if (get()?.flags.isAddingProducts) checkForProductButton(); }, 1500);
 
       // Reinsertar UI si la SPA la elimina (incluye la barra minimizada) con debounce
       try { window.__nvUiObserverPaused = false; } catch(e) { log('debug', 'Error resetting observer pause flag', e); }

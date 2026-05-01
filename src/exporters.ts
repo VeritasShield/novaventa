@@ -1,10 +1,11 @@
+
 import { drawLine, drawWrap, parsePrice, toMoney, log } from './utils.js';
 import { get } from './state.js';
 
 const LOGP = '[NV TM]';
 const _jpegCache = new Map();
 
-async function loadImageBypassingCORS(url) {
+async function loadImageBypassingCORS(url: string): Promise<HTMLImageElement> {
   if (!url) throw new Error('Empty URL');
   const absoluteUrl = new URL(url, window.location.href).href;
 
@@ -32,7 +33,7 @@ async function loadImageBypassingCORS(url) {
     log('debug', `Primary image load failed, attempting CORS bypass: ${absoluteUrl}`);
   }
 
-  let blob;
+  let blob: Blob;
   if (typeof GM_xmlhttpRequest !== 'undefined') {
     blob = await new Promise((resolve, reject) => {
       GM_xmlhttpRequest({
@@ -40,8 +41,8 @@ async function loadImageBypassingCORS(url) {
         url: absoluteUrl,
         responseType: 'blob',
         timeout: 15000,
-        onload: (res) => (res.status >= 200 && res.status < 300) ? resolve(res.response) : reject(new Error(`HTTP ${res.status}`)),
-        onerror: (err) => reject(new Error('GM_xmlhttpRequest error: ' + err)),
+        onload: (res: any) => (res.status >= 200 && res.status < 300) ? resolve(res.response) : reject(new Error(`HTTP ${res.status}`)),
+        onerror: (err: any) => reject(new Error('GM_xmlhttpRequest error: ' + err)),
         ontimeout: () => reject(new Error('Timeout downloading image'))
       });
     });
@@ -79,7 +80,7 @@ async function loadImageBypassingCORS(url) {
    * @param {{scale?: number, quality?: number, bg?: string}} [opts]
    * @returns {Promise<string>} dataURL
    */
-async function _toJPEGDataURL(src, cssW = 88, cssH = 88, scale = 3, quality = 0.95, bg = '#ffffff') {
+async function _toJPEGDataURL(src: string, cssW = 88, cssH = 88, scale = 3, quality = 0.95, bg = '#ffffff') {
     let img;
     try {
       img = await loadImageBypassingCORS(src);
@@ -92,6 +93,7 @@ async function _toJPEGDataURL(src, cssW = 88, cssH = 88, scale = 3, quality = 0.
     const c = document.createElement('canvas');
     c.width = outW; c.height = outH;
     const ctx = c.getContext('2d');
+    if (!ctx) throw new Error('Failed to get 2D context');
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
     ctx.fillStyle = bg; ctx.fillRect(0, 0, outW, outH);
@@ -104,7 +106,7 @@ async function _toJPEGDataURL(src, cssW = 88, cssH = 88, scale = 3, quality = 0.
     return c.toDataURL('image/jpeg', quality);
   };
 
-export async function toJPEGDataURL(src, cssW = 88, cssH = 88, { scale = 3, quality = 0.95, bg = '#ffffff' } = {}) {
+export async function toJPEGDataURL(src: string, cssW = 88, cssH = 88, { scale = 3, quality = 0.95, bg = '#ffffff' } = {}) {
   const key = `${src}|${cssW}|${cssH}|${scale}|${quality}|${bg}`;
   if (_jpegCache.has(key)) return await _jpegCache.get(key);
   const p = _toJPEGDataURL(src, cssW, cssH, scale, quality, bg).then(res => {
@@ -121,12 +123,13 @@ export async function toJPEGDataURL(src, cssW = 88, cssH = 88, { scale = 3, qual
    * @param {number} [i]
    * @returns {Promise<string>} dataURL PNG
    */
-export async function renderCardToPNG(p, i = 1) {
+export async function renderCardToPNG(p: Product, i = 1) {
     const PAD = 18, IMG = 120;
     const W = 1100, H = 520;
     const canvas = document.createElement('canvas');
     canvas.width = W; canvas.height = H;
     const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Failed to get 2D context');
     ctx.fillStyle = '#ffffff'; ctx.fillRect(0,0,W,H);
 
     const imgX = PAD, imgY = PAD;
@@ -193,6 +196,7 @@ export async function renderCardToPNG(p, i = 1) {
     out.width = Math.max(1, Math.round(sw));
     out.height = Math.max(1, Math.round(sh));
     const octx = out.getContext('2d');
+    if (!octx) throw new Error('Failed to get 2D context');
     octx.fillStyle = '#ffffff'; octx.fillRect(0,0,out.width,out.height);
     octx.drawImage(canvas, sx, sy, sw, sh, 0, 0, out.width, out.height);
     octx.strokeStyle = '#e6e6e6'; octx.strokeRect(0.5, 0.5, out.width-1, out.height-1);
@@ -204,7 +208,7 @@ export async function renderCardToPNG(p, i = 1) {
    * @param {Map<string, Product>} productMap
    * @returns {Promise<void>}
    */
-export async function openPrintableDoc(productMap) {
+export async function openPrintableDoc(productMap: Map<string, Product>) {
     let totalQty = 0; let totalValue = 0;
     productMap.forEach(p => {
       const q = p.quantity || 1;
@@ -212,15 +216,15 @@ export async function openPrintableDoc(productMap) {
       totalQty += q; totalValue += (priceN || 0) * q;
     });
 
-    const norm = s => String(s||'').trim().replace(/\s+/g,' ');
+    const norm = (s: string | undefined) => String(s||'').trim().replace(/\s+/g,' ');
     const allCaptured = get()?.capturedProducts || [];
 
-    const groups = new Map();
+    const groups = new Map<string, { name: string, items: Map<string, Product>, units: number, value: number }>();
     allCaptured.forEach(p => {
       const pname = norm(p.person);
       const key = pname || '(Sin nombre)';
       if (!groups.has(key)) groups.set(key, { name: pname || '(Sin nombre)', items: new Map(), units: 0, value: 0 });
-      const g = groups.get(key);
+      const g = groups.get(key)!;
       const code = p.code || 'N/A';
       const q = Number(p.quantity || 1);
       const v = (parsePrice(p.price) || 0) * q;
@@ -240,7 +244,7 @@ export async function openPrintableDoc(productMap) {
       .sort((a,b) => (a.name||'').localeCompare(b.name||''))
       .map(g => ({ name: g.name, units: g.units, value: g.value }));
 
-    const buildCardHTML = async (p, idx) => {
+    const buildCardHTML = async (p: Product, idx: number) => {
       const price = p.price ? toMoney(parsePrice(p.price)) : '';
       const cat   = p.catalogPrice ? toMoney(parsePrice(p.catalogPrice)) : '';
       const jpgSrc = p.image ? await toJPEGDataURL(p.image, 88, 88, { scale: 1.8, quality: 0.92 }) : '';
@@ -277,7 +281,7 @@ export async function openPrintableDoc(productMap) {
       bodyGridHTML = sections.join('\n');
     } else {
       const itemsArr = Array.from(productMap.values());
-      const cards = await Promise.all(itemsArr.map((p, i) => buildCardHTML({ ...p, person: '' }, i + 1)));
+      const cards = await Promise.all(itemsArr.map((p, i) => buildCardHTML(p, i + 1)));
       bodyGridHTML = `<div class="grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:8px;">${cards.join('\n')}</div>`;
     }
 
@@ -350,7 +354,7 @@ body{font-family:Arial,Helvetica,sans-serif;margin:16px;background:#fafafa;color
    * @param {Map<string, Product>} productMap
    * @returns {Promise<void>}
    */
-export async function openDocsPNG(productMap) {
+export async function openDocsPNG(productMap: Map<string, Product>) {
     const promises = Array.from(productMap.values()).map(async (p, i) => {
       try {
         const dataURL = await renderCardToPNG(p, i + 1);
@@ -409,8 +413,8 @@ export async function openDocsPNG(productMap) {
    * optimizado para pegar en Excel/Google Sheets.
    * @param {Map<string, Product>} productMap
    */
-export function openSubtotalsTable(productMap) {
-    const groups = new Map();
+export function openSubtotalsTable(productMap: Map<string, Product>) {
+    const groups = new Map<string, { name: string, units: number, value: number }>();
     let globalTotal = 0; let globalQty = 0;
 
     productMap.forEach(p => {
@@ -418,8 +422,9 @@ export function openSubtotalsTable(productMap) {
       const q = Number(p.quantity || 1);
       const v = (parsePrice(p.price) || 0) * q;
       if (!groups.has(person)) groups.set(person, { name: person, units: 0, value: 0 });
-      const g = groups.get(person);
-      g.units += q; g.value += v;
+      const g = groups.get(person)!;
+      g.units += q;
+      g.value += v;
       globalQty += q; globalTotal += v;
     });
 
@@ -471,7 +476,7 @@ export function openSubtotalsTable(productMap) {
    * Exporta el estado actual a un archivo JSON local
    * @param {object} stateData 
    */
-export function exportBackup(stateData) {
+export function exportBackup(stateData: AppState) {
     const json = JSON.stringify(stateData, null, 2);
     const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -479,25 +484,25 @@ export function exportBackup(stateData) {
     a.href = url;
     a.download = `novaventa-backup-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
     a.click();
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 100);
   };
 
   /**
    * Vista de reporte de productos agotados para clientes (HTML/PNG híbrido)
    * @param {Map<string, Product>} productMap
    */
-export async function openFailedReport(productMap) {
+export async function openFailedReport(productMap: Map<string, Product>) {
     let totalQty = 0;
-    const groups = new Map();
+    const groups = new Map<string, { name: string, items: Product[] }>();
     
     productMap.forEach(p => { 
       totalQty += Number(p.quantity || 1); 
       const pname = String(p.person || '').trim().replace(/\s+/g,' ') || '(Sin nombre)';
       if (!groups.has(pname)) groups.set(pname, { name: pname, items: [] });
-      groups.get(pname).items.push(p);
+      groups.get(pname)!.items.push(p);
     });
 
-    const buildCardHTML = async (p) => {
+    const buildCardHTML = async (p: Product) => {
       const jpgSrc = p.image ? await toJPEGDataURL(p.image, 88, 88, { scale: 1.8, quality: 0.92 }) : '';
       return `
 <div class="card" style="display:grid;grid-template-columns:88px 1fr;gap:8px;padding:8px;border:1px solid #f5c6c6;border-radius:10px;background:#fffafA;">
@@ -527,7 +532,7 @@ export async function openFailedReport(productMap) {
       bodyGridHTML = sections.join('\n');
     } else {
       const itemsArr = Array.from(productMap.values());
-      const cards = await Promise.all(itemsArr.map(p => buildCardHTML({ ...p, person: '' })));
+      const cards = await Promise.all(itemsArr.map(p => buildCardHTML(p)));
       bodyGridHTML = `<div class="grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:8px;">${cards.join('\n')}</div>`;
     }
 

@@ -4,12 +4,12 @@ import { renderSummary, renderProductItem } from './renderers.js';
 import { exportBackup, openPrintableDoc, openDocsPNG, openSubtotalsTable, openFailedReport } from './exporters.js';
 
   let isDragging = false;
-  let offsetX, offsetY;
+  let offsetX: number, offsetY: number;
   let isResizing = false;
-  let appCallbacks = {};
+  let appCallbacks: Partial<AppCallbacks> = {};
 
-  function onMouseDown(e) {
-    if (e.target.id === 'resizeHandle') return;
+  function onMouseDown(e: MouseEvent) {
+    if ((e.target as HTMLElement).id === 'resizeHandle') return;
     isDragging = true;
     const div = document.getElementById('productsInputContainer');
     if (!div) return;
@@ -18,7 +18,7 @@ import { exportBackup, openPrintableDoc, openDocsPNG, openSubtotalsTable, openFa
     document.addEventListener('mousemove', onMouseMove);
     document.addEventListener('mouseup', onMouseUp);
   }
-  function onMouseMove(e) {
+  function onMouseMove(e: MouseEvent) {
     const div = document.getElementById('productsInputContainer');
     if (!div) return;
     if (isDragging) {
@@ -41,7 +41,7 @@ import { exportBackup, openPrintableDoc, openDocsPNG, openSubtotalsTable, openFa
     if (!div) return;
     setUI({ windowPosition: { left: div.style.left, top: div.style.top, width: div.style.width, height: div.style.height } });
   }
-  function onResizeMouseDown(e) {
+  function onResizeMouseDown(e: MouseEvent) {
     isResizing = true; e.preventDefault();
     document.addEventListener('mousemove', onMouseMove);
     document.addEventListener('mouseup', onMouseUp);
@@ -56,7 +56,7 @@ import { exportBackup, openPrintableDoc, openDocsPNG, openSubtotalsTable, openFa
     setUI({ isMinimized: true });
   };
 
-  export function restoreWindow(callbacks) {
+  export function restoreWindow(callbacks: Partial<AppCallbacks>) {
     const div = document.getElementById('productsInputContainer');
     const minimizedBar = document.getElementById('minimizedBar');
     if (!div || !minimizedBar) {
@@ -90,7 +90,7 @@ import { exportBackup, openPrintableDoc, openDocsPNG, openSubtotalsTable, openFa
     setUI({ isPinned, windowPosition: { left: div.style.left, top: div.style.top, width: div.style.width, height: div.style.height } });
   };
 
-  export function ensureMinimizedBar(callbacks) {
+  export function ensureMinimizedBar(callbacks: Partial<AppCallbacks>) {
     let minimizedBar = document.getElementById('minimizedBar');
     const isMin = getUI().isMinimized;
     if (!minimizedBar) {
@@ -109,7 +109,7 @@ import { exportBackup, openPrintableDoc, openDocsPNG, openSubtotalsTable, openFa
     }
   };
 
-  export function setCooldown(message, ms = 1500, onSkip = null) {
+  export function setCooldown(message: string, ms = 1500, onSkip: (() => void) | null = null) {
     const bar = document.getElementById('nvCooldown');
     if (!bar) return;
     bar.replaceChildren();
@@ -122,11 +122,11 @@ import { exportBackup, openPrintableDoc, openDocsPNG, openSubtotalsTable, openFa
     const timerSpan = document.createElement('span'); timerSpan.style.marginLeft = '6px'; bar.appendChild(timerSpan);
     bar.style.display = 'block';
     const t0 = Date.now();
-    if (window.__nvCooldownTimer) clearInterval(window.__nvCooldownTimer);
-    window.__nvCooldownTimer = setInterval(() => {
+    if (window.__nvCooldownTimer) clearInterval(window.__nvCooldownTimer as number);
+    window.__nvCooldownTimer = window.setInterval(() => {
       const left = Math.max(0, ms - (Date.now() - t0));
       timerSpan.textContent = ` (reintento en ${Math.ceil(left/1000)}s)`;
-      if (left <= 0) clearInterval(window.__nvCooldownTimer);
+      if (left <= 0) clearInterval(window.__nvCooldownTimer as number);
     }, 200);
   };
 
@@ -134,18 +134,33 @@ import { exportBackup, openPrintableDoc, openDocsPNG, openSubtotalsTable, openFa
     const bar = document.getElementById('nvCooldown');
     if (bar) { bar.style.display = 'none'; bar.replaceChildren(); }
     if (window.__nvCooldownTimer) {
-      clearInterval(window.__nvCooldownTimer);
+      clearInterval(window.__nvCooldownTimer as number);
       window.__nvCooldownTimer = null;
     }
   };
 
-  export function injectUI(callbacks) {
+  export function injectUI(callbacks: Partial<AppCallbacks>) {
     appCallbacks = callbacks || {};
     try { window.__nvUiObserverPaused = true; } catch(e) { log('debug', 'Failed to pause observer', e); }
-    if (document.getElementById('productsInputContainer')) { ensureMinimizedBar(callbacks); setTimeout(() => { try { window.__nvUiObserverPaused = false; } catch(e) { log('debug', 'Failed to unpause observer', e); } }, 0); return; }
+    if (document.getElementById('productsInputContainer')) { 
+      ensureMinimizedBar(callbacks); 
+      const st = get();
+      const isAdding = !!st?.flags.isAddingProducts;
+      const ta = document.getElementById('productsInput') as HTMLTextAreaElement | null;
+      if (ta) {
+        ta.disabled = isAdding;
+        if (document.activeElement !== ta) ta.value = (st?.queue.products || []).join('\n');
+      }
+      const startBtn = document.getElementById('startAdding');
+      if (startBtn) startBtn.style.display = isAdding ? 'none' : 'block';
+      const stopBtn = document.getElementById('stopAdding');
+      if (stopBtn) stopBtn.style.display = isAdding ? 'block' : 'none';
+      setTimeout(() => { try { window.__nvUiObserverPaused = false; } catch(e) { log('debug', 'Failed to unpause observer', e); } }, 0); 
+      return; 
+    }
 
     ensureMinimizedBar(callbacks);
-    const st = get();
+    const st = get()!;
     const uiSt = st.ui || {};
 
     const div = document.createElement('div');
@@ -182,7 +197,7 @@ import { exportBackup, openPrintableDoc, openDocsPNG, openSubtotalsTable, openFa
     exportBtn.textContent = 'Exportar';
     exportBtn.title = 'Exportar historial y configuracion a JSON';
     exportBtn.addEventListener('click', () => {
-      exportBackup(get());
+      exportBackup(get()!);
     });
     titleButtons.appendChild(exportBtn);
 
@@ -233,10 +248,10 @@ import { exportBackup, openPrintableDoc, openDocsPNG, openSubtotalsTable, openFa
     const resizeHandle = document.createElement('div'); resizeHandle.id = 'resizeHandle'; resizeHandle.addEventListener('mousedown', onResizeMouseDown); div.appendChild(resizeHandle);
     (document.body || document.documentElement).prepend(div);
 
-    btn.addEventListener('click', () => callbacks.onStartAdding(textarea.value));
-    stopBtn.addEventListener('click', () => { if (callbacks.onStopAdding) callbacks.onStopAdding(); });
-    clearFailedBtn.addEventListener('click', callbacks.onClearFailed);
-    clearCapturedBtn.addEventListener('click', callbacks.onClearCaptured);
+    btn.addEventListener('click', () => callbacks.onStartAdding?.(textarea.value));
+    stopBtn.addEventListener('click', () => callbacks.onStopAdding?.());
+    clearFailedBtn.addEventListener('click', () => callbacks.onClearFailed?.());
+    clearCapturedBtn.addEventListener('click', () => callbacks.onClearCaptured?.());
 
     if (callbacks.onInit) callbacks.onInit();
     setTimeout(() => { try { window.__nvUiObserverPaused = false; } catch(e) { log('debug', 'Failed to unpause observer', e); } }, 0);
@@ -245,7 +260,7 @@ import { exportBackup, openPrintableDoc, openDocsPNG, openSubtotalsTable, openFa
   export function showCapturedProducts() {
     const capturedProductsDiv = document.getElementById('capturedProductsContainer');
     if (!capturedProductsDiv) return;
-    let capturedProducts = get().capturedProducts.slice();
+    let capturedProducts = get()!.capturedProducts.slice();
 
     if (capturedProducts.length === 0) {
       capturedProductsDiv.textContent = '';
@@ -295,7 +310,7 @@ import { exportBackup, openPrintableDoc, openDocsPNG, openSubtotalsTable, openFa
     const btnRetry = document.createElement('button');
     btnRetry.className = 'actionButton'; btnRetry.textContent = 'Reintentar fallidos → cola';
     btnRetry.onclick = () => {
-      const st = get();
+      const st = get()!;
       const failed = (st.failed.text || '').trim();
       if (!failed) return alert('No hay fallidos');
       const arr = failed.split('\n').filter(Boolean);
@@ -329,7 +344,7 @@ import { exportBackup, openPrintableDoc, openDocsPNG, openSubtotalsTable, openFa
     const container = document.getElementById('failedProductsContainer');
     if (!container) return;
     
-    let details = get().failed.data.slice();
+    let details = get()!.failed.data.slice();
     container.replaceChildren();
     const h3 = document.createElement('h3'); h3.textContent = 'Productos fallidos:'; container.appendChild(h3);
     
@@ -363,11 +378,11 @@ import { exportBackup, openPrintableDoc, openDocsPNG, openSubtotalsTable, openFa
     try {
       sortSelect.onchange = () => {
         const val = sortSelect.value;
-        let data = get().failed.data.slice();
-        if (val === 'name') data.sort((a,b) => (a.name||'').localeCompare(b.name||''));
-        if (val === 'price') data.sort((a,b) => (parsePrice(a.price)||0) - (parsePrice(b.price)||0));
-        if (val === 'price_desc') data.sort((a,b) => (parsePrice(b.price)||0) - (parsePrice(a.price)||0));
-        setFailed(get().failed.text, data);
+        let data = get()!.failed.data.slice();
+        if (val === 'name') data.sort((a: Product, b: Product) => (a.name||'').localeCompare(b.name||''));
+        if (val === 'price') data.sort((a: Product, b: Product) => (parsePrice(a.price)||0) - (parsePrice(b.price)||0));
+        if (val === 'price_desc') data.sort((a: Product, b: Product) => (parsePrice(b.price)||0) - (parsePrice(a.price)||0));
+        setFailed(get()!.failed.text, data);
         showFailedProductsDetails();
       };
     } catch(e) { log('warn', 'Failed to bind failed products sort logic', e); }

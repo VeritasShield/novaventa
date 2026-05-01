@@ -1,6 +1,6 @@
 ﻿﻿import { toMoney, parsePrice } from './utils.js';
 
-export function renderSummary(totalQty, totalValueNumber){
+export function renderSummary(totalQty: number, totalValueNumber: number){
     const summary = document.createElement('div');
     summary.className = 'summary';
     const money = toMoney(totalValueNumber || 0);
@@ -25,7 +25,7 @@ export function renderSummary(totalQty, totalValueNumber){
     return summary;
   };
 
-export function renderProductItem(p, index, labelOrOpts){
+export function renderProductItem(p: Product, index: number, labelOrOpts?: string | { label?: string; type?: string }) {
     const o = (typeof labelOrOpts === 'string') ? { label: labelOrOpts } : (labelOrOpts || {});
     const label = o.label || (o.type === 'failed' ? 'Fallido' : 'Producto');
     const item = document.createElement('div');

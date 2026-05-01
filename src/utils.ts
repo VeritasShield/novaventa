@@ -5,7 +5,7 @@ const LOGP = '[NV TM]';
  * @param {number} [maxMs]
  * @returns {Promise<void>}
  */
-export function waitForBody(maxMs = 10000) {
+export function waitForBody(maxMs: number = 10000): Promise<void> {
   return new Promise((resolve, reject) => {
     if (document.body) return resolve();
     const t0 = performance.now();
@@ -21,7 +21,7 @@ export function waitForBody(maxMs = 10000) {
  * @param {unknown} val
  * @returns {number}
  */
-export function parsePrice(val) {
+export function parsePrice(val: unknown): number {
   if (val == null) return 0;
   let s = String(val).trim();
   if (!s) return 0;
@@ -44,7 +44,7 @@ export function parsePrice(val) {
   const lastDot = s.lastIndexOf('.');
   const lastComma = s.lastIndexOf(',');
 
-  function toNum(str){
+  function toNum(str: string): number {
     const n = parseFloat(str);
     return isNaN(n) ? 0 : (negative ? -n : n);
   }
@@ -93,7 +93,7 @@ export function parsePrice(val) {
  * @param {number|string} n
  * @returns {string}
  */
-export function toMoney(n) {
+export function toMoney(n: number | string): string {
   const v = Math.round(Number(n) || 0);
   try {
     return v.toLocaleString('es-CO', {
@@ -112,11 +112,11 @@ export function toMoney(n) {
  * @param {string} line
  * @returns {{ code: string, quantity: string, person: string }}
  */
-export function parseEntryLine(line){
+export function parseEntryLine(line: string): { code: string; quantity: string; person: string } {
   const s = String(line||'').trim();
   if (!s) return { code:'', quantity:'1', person:'' };
 
-  const clean = str => String(str || '').replace(/[.,;:]+$/, '').trim();
+  const clean = (str: string | undefined) => String(str || '').replace(/[.,;:]+$/, '').trim();
 
   let m = s.match(/^(\S+?)\s*-\s*(\d+)(?:\s*(.*))?$/);
   if (m) return { code: clean(m[1]), quantity: clean(m[2]) || '1', person: clean(m[3]) };
@@ -128,20 +128,20 @@ export function parseEntryLine(line){
 /**
  * Busca tarjeta padre (grid) para un nodo
  * @param {Element|null} el
- * @returns {Element|null}
+ * @returns {Element | null}
  */
-export function findProductCard(el) {
+export function findProductCard(el: Element | null): Element | null {
   if (!el || typeof el.closest !== 'function') return null;
   return el.closest('.cardproduct, [class*="cardproduct"]') || el.closest('.col-xs-12');
 }
 
 /**
  * Encuentra URL de imagen (grid o detalle)
- * @param {Element|Document} ctx
+ * @param {Element|Document|null} ctx
  * @returns {string}
  */
-export function findProductImageUrl(ctx) {
-  let card = findProductCard(ctx);
+export function findProductImageUrl(ctx: Element | Document | null): string {
+  let card = findProductCard(ctx as Element | null);
   if (card) {
     let img = card.querySelector('img[data-image]') ||
               card.querySelector('.cardproduct__img img') ||
@@ -150,23 +150,23 @@ export function findProductImageUrl(ctx) {
   }
   let detailImg = document.querySelector('.product-main img[data-image], .product-main img, .js-image-tdp-notFound, .product-details img');
   if (detailImg) return detailImg.getAttribute('data-image') || detailImg.getAttribute('src') || '';
-  let anyImg = document.querySelector('img[src*="/images/"], img[src*="cdn"], img[src*=".webp"], img[src*=".jpg"], img[src*=".png"]');
+  let anyImg = document.querySelector<HTMLImageElement>('img[src*="/images/"], img[src*="cdn"], img[src*=".webp"], img[src*=".jpg"], img[src*=".png"]');
   return anyImg ? (anyImg.getAttribute('data-image') || anyImg.src || '') : '';
 }
 
 /**
  * Deduplica lista de productos sumando cantidades
  */
-export function dedupeProducts(list, { perPerson = false } = {}) {
-  const map = new Map();
-  const norm = s => String(s||'').trim().replace(/\s+/g,' ');
+export function dedupeProducts(list: Product[], { perPerson = false }: { perPerson?: boolean } = {}): Map<string, Product> {
+  const map = new Map<string, Product>();
+  const norm = (s: string | undefined) => String(s||'').trim().replace(/\s+/g,' ');
   list.forEach(p => {
     const code = p.code || 'N/A';
     const person = perPerson ? norm(p.person) : '';
     const key = perPerson ? `${code}@@${person}` : code;
     if (map.has(key)) {
-      const acc = map.get(key);
-      acc.quantity += (p.quantity || 1);
+      const acc = map.get(key)!;
+      acc.quantity += Number(p.quantity || 1);
       acc.name ||= p.name;
       acc.price ||= p.price;
       acc.catalogPrice ||= p.catalogPrice;
@@ -177,13 +177,13 @@ export function dedupeProducts(list, { perPerson = false } = {}) {
       acc.offerType ||= p.offerType;
       acc.person = person;
     } else {
-      map.set(key, { ...p, person, quantity: p.quantity || 1 });
+      map.set(key, { ...p, person, quantity: Number(p.quantity || 1) });
     }
   });
   return map;
 }
 
-export const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+export const delay = (ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms));
 
 /**
  * Retraso dinámico (Jitter) para evadir bloqueos por WAF o Rate Limiting
@@ -191,7 +191,7 @@ export const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
  * @param {number} maxMs 
  * @returns {Promise<void>}
  */
-export const randomDelay = (minMs, maxMs) => delay(Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs);
+export const randomDelay = (minMs: number, maxMs: number): Promise<void> => delay(Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs);
 
 /**
  * Dibuja texto y retorna ancho
@@ -201,7 +201,7 @@ export const randomDelay = (minMs, maxMs) => delay(Math.floor(Math.random() * (m
  * @param {number} y
  * @returns {number}
  */
-export function drawLine(ctx, txt, x, y){ ctx.fillText(txt, x, y); return ctx.measureText(txt).width; }
+export function drawLine(ctx: CanvasRenderingContext2D, txt: string, x: number, y: number): number { ctx.fillText(txt, x, y); return ctx.measureText(txt).width; }
 
 /**
  * Pinta texto con salto de línea automático
@@ -213,7 +213,7 @@ export function drawLine(ctx, txt, x, y){ ctx.fillText(txt, x, y); return ctx.me
  * @param {number} lineHeight
  * @returns {{ endY: number, maxWidthUsed: number }}
  */
-export function drawWrap(ctx, text, x, y, maxWidth, lineHeight){
+export function drawWrap(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, maxWidth: number, lineHeight: number): { endY: number, maxWidthUsed: number } {
   const words = String(text).split(/\s+/); let line = '', yy = y, maxUsed = 0;
   for (let n=0; n<words.length; n++) {
     const test = line + words[n] + ' ';
@@ -231,8 +231,15 @@ export function drawWrap(ctx, text, x, y, maxWidth, lineHeight){
   return { endY: yy, maxWidthUsed: maxUsed };
 }
 
+interface ReportErrorOpts {
+  ctx?: unknown;
+  ui?: boolean;
+  level?: 'error' | 'warn' | 'info' | 'debug';
+  timeoutMs?: number;
+}
+
 // Reporte de errores unificado
-export function reportError(message, { ctx = null, ui = true, level = 'error', timeoutMs = 5000 } = {}){
+export function reportError(message: string, { ctx = null, ui = true, level = 'error', timeoutMs = 5000 }: ReportErrorOpts = {}): void {
   try {
     const prefix = LOGP + ' ';
     const payload = { message: String(message || ''), ctx };
@@ -266,9 +273,9 @@ export function reportError(message, { ctx = null, ui = true, level = 'error', t
 }
 
 // Logging con niveles
-const LVL = { error: 0, warn: 1, info: 2, debug: 3 };
+const LVL: Record<string, number> = { error: 0, warn: 1, info: 2, debug: 3 };
 
-export function getLogLevel(){
+export function getLogLevel(): string {
   try {
     const v = (localStorage.getItem('nv_log_level') || 'info').toLowerCase();
     return LVL[v] != null ? v : 'info';
@@ -277,7 +284,7 @@ export function getLogLevel(){
   }
 }
 
-export function setLogLevel(l){ 
+export function setLogLevel(l: string): void { 
   try { 
     localStorage.setItem('nv_log_level', String(l||'info')); 
   } catch(e) {
@@ -285,7 +292,7 @@ export function setLogLevel(l){
   } 
 }
 
-export function log(level, ...args){
+export function log(level: string, ...args: unknown[]): void {
   const cur = LVL[getLogLevel()];
   const want = LVL[(level||'info').toLowerCase()] ?? LVL.info;
   if (want > cur) return;
