@@ -1,9 +1,75 @@
-(function(){
-  const NVNS = (window.NV = window.NV || {});
-  NVNS.exporters = NVNS.exporters || {};
-  const X = NVNS.exporters;
-  const U = NVNS.utils || {};
-  const LOGP = NVNS.LOGP || '[NV TM]';
+import { drawLine, drawWrap, parsePrice, toMoney, log } from './utils.js';
+import { get } from './state.js';
+
+const LOGP = '[NV TM]';
+const _jpegCache = new Map();
+
+async function loadImageBypassingCORS(url) {
+  if (!url) throw new Error('Empty URL');
+  const absoluteUrl = new URL(url, window.location.href).href;
+
+  if (absoluteUrl.startsWith('data:')) {
+    return await new Promise((res, rej) => {
+      const img = new Image();
+      img.decoding = 'async';
+      img.onload = () => res(img);
+      img.onerror = () => rej(new Error('Base64 image load failed'));
+      img.src = absoluteUrl;
+    });
+  }
+
+  try {
+    return await new Promise((res, rej) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.decoding = 'async';
+      img.referrerPolicy = 'no-referrer';
+      img.onload = () => res(img);
+      img.onerror = () => rej(new Error('CORS image load failed'));
+      img.src = absoluteUrl;
+    });
+  } catch (e1) {
+    log('debug', `Primary image load failed, attempting CORS bypass: ${absoluteUrl}`);
+  }
+
+  let blob;
+  if (typeof GM_xmlhttpRequest !== 'undefined') {
+    blob = await new Promise((resolve, reject) => {
+      GM_xmlhttpRequest({
+        method: 'GET',
+        url: absoluteUrl,
+        responseType: 'blob',
+        timeout: 15000,
+        onload: (res) => (res.status >= 200 && res.status < 300) ? resolve(res.response) : reject(new Error(`HTTP ${res.status}`)),
+        onerror: (err) => reject(new Error('GM_xmlhttpRequest error: ' + err)),
+        ontimeout: () => reject(new Error('Timeout downloading image'))
+      });
+    });
+  } else {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), 15000);
+    try {
+      const r = await fetch(absoluteUrl, { mode: 'cors', signal: controller.signal });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      blob = await r.blob();
+    } finally {
+      clearTimeout(id);
+    }
+  }
+
+  const objUrl = URL.createObjectURL(blob);
+  try {
+    return await new Promise((res, rej) => {
+      const i = new Image();
+      i.decoding = 'async';
+      i.onload = () => res(i);
+      i.onerror = () => rej(new Error('Blob image load failed'));
+      i.src = objUrl;
+    });
+  } finally {
+    URL.revokeObjectURL(objUrl);
+  }
+}
 
   /**
    * Convierte imagen a JPG HD manteniendo proporción (contain)
@@ -13,31 +79,13 @@
    * @param {{scale?: number, quality?: number, bg?: string}} [opts]
    * @returns {Promise<string>} dataURL
    */
-  X.toJPEGDataURL = async function toJPEGDataURL(src, cssW = 88, cssH = 88, { scale = 3, quality = 0.95, bg = '#ffffff' } = {}) {
-    function load(url) {
-      return new Promise((res, rej) => {
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
-        img.decoding = 'async';
-        img.referrerPolicy = 'no-referrer';
-        img.onload = () => res(img);
-        img.onerror = rej;
-        img.src = url;
-      });
-    }
+async function _toJPEGDataURL(src, cssW = 88, cssH = 88, scale = 3, quality = 0.95, bg = '#ffffff') {
     let img;
     try {
-      img = await load(src);
-    } catch {
-      try {
-        const r = await fetch(src, { mode: 'cors' });
-        const b = await r.blob();
-        const u = URL.createObjectURL(b);
-        img = await load(u);
-        URL.revokeObjectURL(u);
-      } catch {
-        return src;
-      }
+      img = await loadImageBypassingCORS(src);
+    } catch (e) {
+      log('debug', `All load strategies failed for image: ${src}`, e);
+      return src;
     }
     const outW = Math.max(1, Math.round(cssW * scale));
     const outH = Math.max(1, Math.round(cssH * scale));
@@ -56,9 +104,16 @@
     return c.toDataURL('image/jpeg', quality);
   };
 
-  // Texto helpers (alias a utils)
-  const drawLine = (...args) => U.drawLine(...args);
-  const drawWrap = (...args) => U.drawWrap(...args);
+export async function toJPEGDataURL(src, cssW = 88, cssH = 88, { scale = 3, quality = 0.95, bg = '#ffffff' } = {}) {
+  const key = `${src}|${cssW}|${cssH}|${scale}|${quality}|${bg}`;
+  if (_jpegCache.has(key)) return await _jpegCache.get(key);
+  const p = _toJPEGDataURL(src, cssW, cssH, scale, quality, bg).then(res => {
+    if (res === src) _jpegCache.delete(key);
+    return res;
+  });
+  _jpegCache.set(key, p);
+  return await p;
+}
 
   /**
    * Render de tarjeta a PNG con recorte automático
@@ -66,7 +121,7 @@
    * @param {number} [i]
    * @returns {Promise<string>} dataURL PNG
    */
-  X.renderCardToPNG = async function renderCardToPNG(p, i = 1) {
+export async function renderCardToPNG(p, i = 1) {
     const PAD = 18, IMG = 120;
     const W = 1100, H = 520;
     const canvas = document.createElement('canvas');
@@ -80,25 +135,12 @@
     let drewImage = false;
     if (p.image) {
       try {
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
-        img.decoding = 'async';
-        img.referrerPolicy = 'no-referrer';
-        img.src = p.image;
-        await new Promise((res,rej)=>{ img.onload=res; img.onerror=rej; });
+        const img = await loadImageBypassingCORS(p.image);
         ctx.drawImage(img, imgX, imgY, IMG, IMG);
         drewImage = true;
-      } catch (_) {
-        try {
-          const r = await fetch(p.image, { mode: 'cors' });
-          const b = await r.blob();
-          const obj = URL.createObjectURL(b);
-          const img2 = new Image(); img2.src = obj;
-          await new Promise((res,rej)=>{ img2.onload=res; img2.onerror=rej; });
-          ctx.drawImage(img2, imgX, imgY, IMG, IMG);
-          URL.revokeObjectURL(obj);
-          drewImage = true;
-        } catch (e) { drewImage = false; }
+      } catch (e) {
+        drewImage = false;
+        log('debug', 'Failed to render image to PNG canvas', e);
       }
     }
     if (!drewImage) {
@@ -130,9 +172,9 @@
     y = wrapP.endY; tRight = Math.max(tRight, X0 + wrapP.maxWidthUsed);
 
     y += 28;
-    const priceN = U.parsePrice(p.price), catN = U.parsePrice(p.catalogPrice);
+    const priceN = parsePrice(p.price), catN = parsePrice(p.catalogPrice);
     ctx.font = '16px Arial';
-    const priceLine = `Precio: ${priceN?U.toMoney(priceN):''}${catN?`  (Cat: ${U.toMoney(catN)})`:''}`;
+    const priceLine = `Precio: ${priceN?toMoney(priceN):''}${catN?`  (Cat: ${toMoney(catN)})`:''}`;
     tRight = Math.max(tRight, X0 + drawLine(ctx, priceLine, X0, y));
 
     const textBottom = y + 1;
@@ -162,16 +204,16 @@
    * @param {Map<string, Product>} productMap
    * @returns {Promise<void>}
    */
-  X.openPrintableDoc = async function openPrintableDoc(productMap) {
+export async function openPrintableDoc(productMap) {
     let totalQty = 0; let totalValue = 0;
     productMap.forEach(p => {
       const q = p.quantity || 1;
-      const priceN = U.parsePrice(p.price);
+      const priceN = parsePrice(p.price);
       totalQty += q; totalValue += (priceN || 0) * q;
     });
 
     const norm = s => String(s||'').trim().replace(/\s+/g,' ');
-    const allCaptured = (window.NV && window.NV.state) ? window.NV.state.get().capturedProducts : [];
+    const allCaptured = get()?.capturedProducts || [];
 
     const groups = new Map();
     allCaptured.forEach(p => {
@@ -181,7 +223,7 @@
       const g = groups.get(key);
       const code = p.code || 'N/A';
       const q = Number(p.quantity || 1);
-      const v = (U.parsePrice(p.price) || 0) * q;
+      const v = (parsePrice(p.price) || 0) * q;
       const prev = g.items.get(code) || { ...p, quantity: 0, person: pname };
       prev.quantity += q;
       if (!prev.name) prev.name = p.name;
@@ -199,9 +241,9 @@
       .map(g => ({ name: g.name, units: g.units, value: g.value }));
 
     const buildCardHTML = async (p, idx) => {
-      const price = p.price ? U.toMoney(U.parsePrice(p.price)) : '';
-      const cat   = p.catalogPrice ? U.toMoney(U.parsePrice(p.catalogPrice)) : '';
-      const jpgSrc = p.image ? await X.toJPEGDataURL(p.image, 88, 88, { scale: 1.8, quality: 0.92 }) : '';
+      const price = p.price ? toMoney(parsePrice(p.price)) : '';
+      const cat   = p.catalogPrice ? toMoney(parsePrice(p.catalogPrice)) : '';
+      const jpgSrc = p.image ? await toJPEGDataURL(p.image, 88, 88, { scale: 1.8, quality: 0.92 }) : '';
       return `
 <div class="card" style="display:grid;grid-template-columns:88px 1fr;gap:8px;padding:8px;border:1px solid #e5e5e5;border-radius:10px;box-shadow:0 2px 6px rgba(0,0,0,.06);background:#fff;">
   <img src="${jpgSrc}" width="88" height="88" onerror="this.style.visibility='hidden'"
@@ -218,25 +260,24 @@
 
     let bodyGridHTML = '';
     if (groups.size > 0) {
-      const sections = [];
       const orderedGroups = Array.from(groups.values()).sort((a,b) => (a.name||'').localeCompare(b.name||''));
-      for (const g of orderedGroups) {
-        let idx = 1; const cards = [];
-        for (const [, p] of g.items) cards.push(await buildCardHTML(p, idx++));
-        sections.push(`
+      const sections = await Promise.all(orderedGroups.map(async g => {
+        const itemsArr = Array.from(g.items.values());
+        const cards = await Promise.all(itemsArr.map((p, i) => buildCardHTML(p, i + 1)));
+        return `
 <section class="person-section" style="margin:12px 0 8px 0;">
   <p class="person-h" style="margin:0 0 6px 0;line-height:1.15;font-size:14px;font-weight:700;">
-    ${g.name} – ${g.units} und – ${U.toMoney(g.value)}
+    ${g.name} – ${g.units} und – ${toMoney(g.value)}
   </p>
   <div class="grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:8px;">
     ${cards.join('\n')}
   </div>
-</section>`);
-      }
+</section>`;
+      }));
       bodyGridHTML = sections.join('\n');
     } else {
-      let idx = 1; const cards = [];
-      for (const [, p] of productMap) cards.push(await buildCardHTML({ ...p, person: '' }, idx++));
+      const itemsArr = Array.from(productMap.values());
+      const cards = await Promise.all(itemsArr.map((p, i) => buildCardHTML({ ...p, person: '' }, i + 1)));
       bodyGridHTML = `<div class="grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:8px;">${cards.join('\n')}</div>`;
     }
 
@@ -244,7 +285,7 @@
     <div class="perperson" style="margin:6px 0 8px 0;font-size:13px;">
       <p style="margin:0;line-height:1.15;"><strong>Totales por persona:</strong></p>
       ${perPersonList.map(x => `
-        <p style="margin:0;line-height:1.15;">• <span class="pp-name">${x.name}</span> – ${x.units} und – ${U.toMoney(x.value)}</p>
+        <p style="margin:0;line-height:1.15;">• <span class="pp-name">${x.name}</span> – ${x.units} und – ${toMoney(x.value)}</p>
       `).join('')}
     </div>` : '';
 
@@ -273,7 +314,7 @@ body{font-family:Arial,Helvetica,sans-serif;margin:16px;background:#fafafa;color
       <p style="margin:0;line-height:1.15;">
         <strong>Total unidades:</strong> ${totalQty}
         &nbsp;&nbsp;
-        <strong>Total estimado:</strong> ${U.toMoney(totalValue)}
+        <strong>Total estimado:</strong> ${toMoney(totalValue)}
       </p>
     </div>
     ${perPersonHTML}
@@ -309,18 +350,17 @@ body{font-family:Arial,Helvetica,sans-serif;margin:16px;background:#fafafa;color
    * @param {Map<string, Product>} productMap
    * @returns {Promise<void>}
    */
-  X.openDocsPNG = async function openDocsPNG(productMap) {
-    const imgs = [];
-    let idx = 1;
-    for (const [, p] of productMap) {
+export async function openDocsPNG(productMap) {
+    const promises = Array.from(productMap.values()).map(async (p, i) => {
       try {
-        const dataURL = await X.renderCardToPNG(p, idx++);
-        imgs.push(`<img src="${dataURL}" style="max-width:100%;display:block;margin:10px 0;border:1px solid #eee;border-radius:8px">`);
+        const dataURL = await renderCardToPNG(p, i + 1);
+        return `<img src="${dataURL}" style="max-width:100%;display:block;margin:10px 0;border:1px solid #eee;border-radius:8px">`;
       } catch (e) {
-        console.error(LOGP, 'PNG embed fail', p.code, e);
-        imgs.push(`<div style="padding:12px;border:1px solid #eee;border-radius:8px;background:#fafafa">Sin imagen (no compatible)</div>`);
+        log('error', 'PNG embed fail', { code: p.code, e });
+        return `<div style="padding:12px;border:1px solid #eee;border-radius:8px;background:#fafafa">Sin imagen (no compatible)</div>`;
       }
-    }
+    });
+    const imgs = await Promise.all(promises);
 
     const html = `<!doctype html>
 <html lang="es"><head><meta charset="utf-8">
@@ -369,14 +409,14 @@ body{font-family:Arial,Helvetica,sans-serif;margin:16px;background:#fafafa;color
    * optimizado para pegar en Excel/Google Sheets.
    * @param {Map<string, Product>} productMap
    */
-  X.openSubtotalsTable = function openSubtotalsTable(productMap) {
+export function openSubtotalsTable(productMap) {
     const groups = new Map();
     let globalTotal = 0; let globalQty = 0;
 
     productMap.forEach(p => {
       const person = String(p.person || '(Sin nombre)').trim();
       const q = Number(p.quantity || 1);
-      const v = (U.parsePrice(p.price) || 0) * q;
+      const v = (parsePrice(p.price) || 0) * q;
       if (!groups.has(person)) groups.set(person, { name: person, units: 0, value: 0 });
       const g = groups.get(person);
       g.units += q; g.value += v;
@@ -388,7 +428,7 @@ body{font-family:Arial,Helvetica,sans-serif;margin:16px;background:#fafafa;color
       <tr>
         <td style="padding:8px; border:1px solid #ccc;">${g.name}</td>
         <td style="padding:8px; border:1px solid #ccc; text-align:center;">${g.units}</td>
-        <td style="padding:8px; border:1px solid #ccc; text-align:right;">${U.toMoney(g.value)}</td>
+        <td style="padding:8px; border:1px solid #ccc; text-align:right;">${toMoney(g.value)}</td>
       </tr>
     `).join('');
 
@@ -412,7 +452,7 @@ body{font-family:Arial,Helvetica,sans-serif;margin:16px;background:#fafafa;color
     <tfoot><tr style="font-weight:bold; background-color:#f9f9f9;">
       <td style="padding:8px; border:1px solid #ccc;">TOTAL</td>
       <td style="padding:8px; border:1px solid #ccc; text-align:center;">${globalQty}</td>
-      <td style="padding:8px; border:1px solid #ccc; text-align:right;">${U.toMoney(globalTotal)}</td>
+      <td style="padding:8px; border:1px solid #ccc; text-align:right;">${toMoney(globalTotal)}</td>
     </tr></tfoot>
   </table>
   <script>
@@ -431,7 +471,7 @@ body{font-family:Arial,Helvetica,sans-serif;margin:16px;background:#fafafa;color
    * Exporta el estado actual a un archivo JSON local
    * @param {object} stateData 
    */
-  X.exportBackup = function exportBackup(stateData) {
+export function exportBackup(stateData) {
     const json = JSON.stringify(stateData, null, 2);
     const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -446,19 +486,19 @@ body{font-family:Arial,Helvetica,sans-serif;margin:16px;background:#fafafa;color
    * Vista de reporte de productos agotados para clientes (HTML/PNG híbrido)
    * @param {Map<string, Product>} productMap
    */
-  X.openFailedReport = async function openFailedReport(productMap) {
+export async function openFailedReport(productMap) {
     let totalQty = 0;
     const groups = new Map();
     
     productMap.forEach(p => { 
-      totalQty += (p.quantity || 1); 
+      totalQty += Number(p.quantity || 1); 
       const pname = String(p.person || '').trim().replace(/\s+/g,' ') || '(Sin nombre)';
       if (!groups.has(pname)) groups.set(pname, { name: pname, items: [] });
       groups.get(pname).items.push(p);
     });
 
     const buildCardHTML = async (p) => {
-      const jpgSrc = p.image ? await X.toJPEGDataURL(p.image, 88, 88, { scale: 1.8, quality: 0.92 }) : '';
+      const jpgSrc = p.image ? await toJPEGDataURL(p.image, 88, 88, { scale: 1.8, quality: 0.92 }) : '';
       return `
 <div class="card" style="display:grid;grid-template-columns:88px 1fr;gap:8px;padding:8px;border:1px solid #f5c6c6;border-radius:10px;background:#fffafA;">
   <img src="${jpgSrc}" width="88" height="88" onerror="this.style.visibility='hidden'"
@@ -475,21 +515,19 @@ body{font-family:Arial,Helvetica,sans-serif;margin:16px;background:#fafafa;color
 
     let bodyGridHTML = '';
     if (groups.size > 0 && Array.from(groups.keys()).some(k => k !== '(Sin nombre)')) {
-      const sections = [];
       const orderedGroups = Array.from(groups.values()).sort((a,b) => a.name.localeCompare(b.name));
-      for (const g of orderedGroups) {
-        const cards = [];
-        for (const p of g.items) cards.push(await buildCardHTML(p));
-        sections.push(`
+      const sections = await Promise.all(orderedGroups.map(async g => {
+        const cards = await Promise.all(g.items.map(p => buildCardHTML(p)));
+        return `
 <section class="person-section" style="margin:12px 0 8px 0;">
   <p class="person-h" style="margin:0 0 6px 0;line-height:1.15;font-size:14px;font-weight:700;color:#c00;">${g.name}</p>
   <div class="grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:8px;">${cards.join('\n')}</div>
-</section>`);
-      }
+</section>`;
+      }));
       bodyGridHTML = sections.join('\n');
     } else {
-      const cards = [];
-      for (const [, p] of productMap) cards.push(await buildCardHTML({ ...p, person: '' }));
+      const itemsArr = Array.from(productMap.values());
+      const cards = await Promise.all(itemsArr.map(p => buildCardHTML({ ...p, person: '' })));
       bodyGridHTML = `<div class="grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:8px;">${cards.join('\n')}</div>`;
     }
 
@@ -513,20 +551,3 @@ body{font-family:Arial,sans-serif;margin:16px;background:#fafafa;color:#222;line
     const url = URL.createObjectURL(blob);
     window.open(url, '_blank', 'noopener,noreferrer');
   };
-
-  // Cache en memoria para conversiones JPEG repetidas
-  try {
-    const __orig = X.toJPEGDataURL;
-    const __cache = (X._jpegCache = X._jpegCache || new Map());
-    X.toJPEGDataURL = async function(src, cssW = 88, cssH = 88, opts = {}){
-      const scale = opts && typeof opts.scale === 'number' ? opts.scale : 3;
-      const quality = opts && typeof opts.quality === 'number' ? opts.quality : 0.95;
-      const bg = (opts && typeof opts.bg === 'string') ? opts.bg : '#ffffff';
-      const key = `${src}|${cssW}|${cssH}|${scale}|${quality}|${bg}`;
-      if (__cache.has(key)) return await __cache.get(key);
-      const p = __orig.call(X, src, cssW, cssH, { scale, quality, bg });
-      __cache.set(key, p);
-      return await p;
-    };
-  } catch (_) {}
-})();

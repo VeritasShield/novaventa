@@ -1,8 +1,8 @@
 # Novaventa Full Plus - Chrome Extension
 
-![Version](https://img.shields.io/badge/version-3.1.0-blue.svg)
+![Version](https://img.shields.io/badge/version-3.1.1-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-Chrome_|_Edge-green.svg)
-![Build](https://img.shields.io/badge/build-esbuild-ff69b4.svg)
+![Build](https://img.shields.io/badge/build-Vite-646CFF.svg)
 
 Extensión de Chrome diseñada para automatizar y optimizar la carga masiva de pedidos en la plataforma B2B de Novaventa. Inyecta una interfaz flotante avanzada para el ingreso de códigos en bloque, extracción inteligente de datos (Web Scraping) y generación de reportes listos para Google Docs, Sheets o WhatsApp.
 
@@ -47,21 +47,20 @@ Para instalar la extensión desde el código fuente, sigue estos pasos:
    cd novaventa
    ```
 
-2. **Instala las dependencias (esbuild):**
+2. **Instala las dependencias (Vite + Tampermonkey):**
    ```bash
    npm install
    ```
 
-3. **Construye la extensión (Bundle):**
+3. **Construye el UserScript:**
    ```bash
    npm run build
    ```
-   *Esto generará el archivo optimizado `dist/content.js`.*
+   *Esto generará el archivo optimizado `dist/novaventa.user.js`.*
 
-4. **Carga la extensión en Chrome:**
-   - Ve a `chrome://extensions/`
-   - Activa el **Modo desarrollador** (esquina superior derecha).
-   - Haz clic en **Cargar descomprimida** y selecciona la carpeta raíz del proyecto.
+4. **Carga el script en tu navegador:**
+   - Instala la extensión **Tampermonkey** en tu navegador.
+   - Arrastra el archivo `dist/novaventa.user.js` a una pestaña o ábrelo en el navegador para instalarlo.
 
 ---
 
@@ -84,7 +83,6 @@ La extensión utiliza Vanilla JS modularizado con un entorno de compilación mod
 - `src/capture.js`: Lógica de Scraping, abstracción de selectores de Novaventa.
 - `src/exporters.js`: Lógica de generación de Canvas (PNG) y reportes HTML.
 - `automation_novaventa.js`: Controlador de orquestación y bucle lógico principal.
-- `scripts/build.js`: Compilador nativo en Node.js que unifica e invoca `esbuild`.
 
 ---
 
@@ -92,6 +90,5 @@ La extensión utiliza Vanilla JS modularizado con un entorno de compilación mod
 
 | Comando | Descripción |
 |---------|-------------|
-| `npm run build` | Compila el código fuente en `dist/content.js`. |
+| `npm run build` | Compila el código fuente en `dist/novaventa.user.js`. |
 | `npm run deploy` | Compila el código, crea un commit automático y lo sube a la rama `main` en GitHub. |
-| `npm run release` | Compila y genera un empaquetado `novaventa-release.zip` listo para publicar en la Web Store. |

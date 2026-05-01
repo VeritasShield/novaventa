@@ -1,21 +1,10 @@
-// ==UserScript==
-// @name         Automatización de Pedidos Novaventa — Full Plus (TM) [HOTFIX UI + Docs PNG Trim]
-// @namespace    http://tampermonkey.net/
-// @version      3.1.0
-// @description  Vista para Docs (HTML/PNG recortado), UI flotante, captura ampliada, totales es-CO y atajos.
-// @match        https://comercio.novaventa.com.co/nautilusb2bstorefront/nautilus/es/COP/*
-// @grant        none
-// ==/UserScript==
+import { waitForBody, parseEntryLine, reportError, randomDelay, log } from './src/utils.js';
+import { get, setUI, setFlags, setQueue, setCaptured, setFailed, setCurrentEntry, init as initState } from './src/state.js';
+import { captureProductData, captureFailedProductData, captureVisibleFromGrid } from './src/capture.js';
+import { injectUI, setCooldown, hideCooldown, showCapturedProducts, showFailedProductsDetails } from './src/ui.js';
+import './content.css';
 
-(function () {
-  'use strict';
-  const LOGP = '[NV TM]';
-
-  // ========= Aliases de Módulos Core =========
-  const { waitForBody, parseEntryLine, reportError, delay, randomDelay } = window.NV.utils;
-  const { get, setUI, setFlags, setQueue, setCaptured, setFailed, setCurrentEntry, init: initState } = window.NV.state;
-  const { injectUI, setCooldown, hideCooldown, showCapturedProducts, showFailedProductsDetails } = window.NV.ui;
-  const { captureProductData, captureFailedProductData, captureVisibleFromGrid } = window.NV.capture;
+const LOGP = '[NV TM]';
 
   // ========= Lógica de Navegación =========
     function processNextProduct() {
@@ -23,7 +12,7 @@
         const products = get().queue.products;
         if (products.length === 0) { 
             setFlags({ isAddingProducts: false });
-            if (window.NV.ui && window.NV.ui.injectUI) window.NV.ui.injectUI(appCallbacks);
+            injectUI(appCallbacks);
             alert('¡Todos los productos de la cola han sido procesados!');
             return; 
         }
@@ -106,13 +95,13 @@
               setQueue(products);
               const st = get();
               setFailed((st.failed.text || '') + (skipped || '') + '\n', st.failed.data);
-              try { captureFailedProductData(); } catch(_) {}
+              try { captureFailedProductData(); } catch(e) { log('warn', 'Failed to capture skipped product data', e); }
               reportError(`Producto saltado: ${skipped||''}`, { ui: true, level: 'warn', timeoutMs: 3000 });
-            } catch(_) {}
+            } catch(e) { log('warn', 'Failed to process skipped product', e); }
             hideCooldown();
             processNextProduct();
           });
-        } catch(_) {}
+        } catch(e) { log('debug', 'Error during cooldown setup', e); }
         setTimeout(() => { hideCooldown(); checkForProductButton(attempts + 1); }, 1500);
       } else {
         try {
@@ -123,7 +112,7 @@
             hasForm: !!document.querySelector('form.add_to_cart_form'),
           };
           reportError('No se encontró el botón de Agregar al carrito. ¿Estás en la página de detalle?', { ctx: hints, ui: true, level: 'warn', timeoutMs: 7000 });
-        } catch(_) {}
+        } catch(e) { log('debug', 'Failed to generate hints for error report', e); }
 
         const products = get().queue.products.slice();
         const failedProduct = products.shift();
@@ -133,10 +122,8 @@
         const failedText = (st.failed.text || '') + (failedProduct || '') + '\n';
         setFailed(failedText, st.failed.data);
 
-        if (window.NV.ui && typeof window.NV.ui.showFailedProductsDetails === 'function') {
-            window.NV.ui.showFailedProductsDetails();
-        }
-        try { captureFailedProductData(); } catch(_) {}
+        showFailedProductsDetails();
+        try { captureFailedProductData(); } catch(e) { log('warn', 'Failed to capture failed product data', e); }
 
         console.error(LOGP, 'Botón AddToCart no encontrado tras múltiples intentos.');
         processNextProduct();
@@ -149,7 +136,7 @@
     reportError(errorMessage, { ui: true, level: 'error' });
     console.error(LOGP, errorMessage);
     setFlags({ isAddingProducts: false });
-    if (window.NV.ui && window.NV.ui.injectUI) window.NV.ui.injectUI(appCallbacks);
+    injectUI(appCallbacks);
     alert(errorMessage);
   }
 
@@ -184,7 +171,6 @@
   // ========= Arranque =========
   (async () => {
     try {
-      window.NV.LOGP = LOGP;
       initState();
       await waitForBody();
       console.log(LOGP, 'Arrancando en', location.href);
@@ -196,21 +182,21 @@
       setTimeout(() => { if (get().flags.isAddingProducts) checkForProductButton(); }, 1500);
 
       // Reinsertar UI si la SPA la elimina (incluye la barra minimizada) con debounce
-      try { window.__nvUiObserverPaused = false; } catch(_) {}
-      try { if (window.__nvUiObserver && window.__nvUiObserver.disconnect) window.__nvUiObserver.disconnect(); } catch(_) {}
+      try { window.__nvUiObserverPaused = false; } catch(e) { log('debug', 'Error resetting observer pause flag', e); }
+      try { window.__nvUiObserver?.disconnect(); } catch(e) { log('debug', 'Error disconnecting observer', e); }
       const mo = new MutationObserver(() => {
         if (window.__nvUiObserverPaused) return;
         if (window.__nvUiObserverTimer) return;
         window.__nvUiObserverTimer = setTimeout(() => {
-          try { window.__nvUiObserverTimer = null; } catch(_) {}
+          try { window.__nvUiObserverTimer = null; } catch(e) { log('debug', 'Error clearing timer flag', e); }
           if (!document.getElementById('productsInputContainer') ||
               !document.getElementById('minimizedBar')) {
             console.log(LOGP, 'UI/Barra no encontrada, reinsertando...');
-            try { window.__nvUiObserverPaused = true; injectUI(appCallbacks); } finally { setTimeout(() => { try { window.__nvUiObserverPaused = false; } catch(_) {} }, 0); }
+            try { window.__nvUiObserverPaused = true; injectUI(appCallbacks); } finally { setTimeout(() => { try { window.__nvUiObserverPaused = false; } catch(e) { log('debug', 'Error resetting observer pause flag', e); } }, 0); }
           }
         }, 250);
       });
-      try { window.__nvUiObserver = mo; window.__nvUiObserverTarget = document.documentElement; window.__nvUiObserverOpts = { childList: true, subtree: true }; } catch(_) {}
+      try { window.__nvUiObserver = mo; window.__nvUiObserverTarget = document.documentElement; window.__nvUiObserverOpts = { childList: true, subtree: true }; } catch(e) { log('debug', 'Error exposing observer to global', e); }
       mo.observe(document.documentElement, { childList: true, subtree: true });
 
       // Atajos (Alt+C y Alt+R)
@@ -218,7 +204,9 @@
         if (e.altKey && e.code === 'KeyC') { e.preventDefault(); captureVisibleFromGrid(); }
         if (e.altKey && e.code === 'KeyR') {
           e.preventDefault();
-          setUI({ isMinimized: false, windowPosition: null });
+          document.getElementById('productsInputContainer')?.remove();
+          document.getElementById('minimizedBar')?.remove();
+          setUI({ isMinimized: false, windowPosition: null, isPinned: false });
           injectUI(appCallbacks);
           alert('UI reiniciada (Alt+R).');
         }
@@ -226,8 +214,6 @@
 
     } catch (e) {
       console.error(LOGP, 'Fallo de arranque:', e);
-      try { injectUI(appCallbacks); } catch(_) {}
+      try { injectUI(appCallbacks); } catch(err) { log('error', 'Fallo crítico al inyectar UI en fallback', err); }
     }
   })();
-
-})();

@@ -1,10 +1,8 @@
-(function(){
-  const NVNS = (window.NV = window.NV || {});
-  NVNS.capture = NVNS.capture || {};
-  const C = NVNS.capture;
-  const U = NVNS.utils;
-  const S = NVNS.state;
-  const LOGP = NVNS.LOGP || '[NV TM]';
+import { findProductImageUrl, log } from './utils.js';
+import { get, setCaptured, setFailed } from './state.js';
+import { showCapturedProducts, showFailedProductsDetails } from './ui.js';
+
+const LOGP = '[NV TM]';
 
   function findProductElementForCode(targetCode) {
     const nodes = Array.from(document.querySelectorAll('.js-nautilus-AddtoCart, [data-product-code]'));
@@ -39,20 +37,23 @@
     return qty;
   }
 
-  C.captureProductData = function captureProductData(quantity = 1) {
-    const productElement = document.querySelector('.js-nautilus-AddtoCart');
-    if (!productElement) return;
-
-    const st = S.get();
+export function captureProductData(quantity = 1) {
+    const st = get();
     const personFromLine = st.currentEntry.person || '';
     const qtyFromLineRaw = st.currentEntry.qtyFromLine;
+    const codeFromLine = st.currentEntry.codeFromLine || '';
+
+    let el = document.querySelector('.js-nautilus-AddtoCart') || findProductElementForCode(codeFromLine) || document.querySelector('.product-main, .product-details');
+
     let qty = Math.max(1, parseInt(qtyFromLineRaw ?? String(quantity), 10) || 1);
 
-    const fullProductCode = productElement.getAttribute('data-product-code') || '';
+    const fullProductCode = el?.getAttribute('data-product-code') || codeFromLine || '';
     const productCode = (fullProductCode.split('_')[0]) || fullProductCode;
 
-    const form = productElement.closest('form') ||
-          document.querySelector(`form.add_to_cart_form input[name="productCodePost"][value="${fullProductCode}"]`)?.closest('form');
+    const form = el?.closest('form') ||
+          document.querySelector(`form.add_to_cart_form input[name="productCodePost"][value="${fullProductCode}"]`)?.closest('form') ||
+          document.querySelector('form.add_to_cart_form');
+
     if (form) {
         const qtyInput = form.querySelector('input.qtyList, input[name="qty"]');
         if (qtyInput) {
@@ -63,27 +64,27 @@
 
     const productData = {
         code: productCode,
-        name: productElement.getAttribute('data-product-name'),
-        price: productElement.getAttribute('data-product-price'),
-        catalogPrice: productElement.getAttribute('data-product-catalog-price'),
-        brand: productElement.getAttribute('data-product-brand'),
-        category: productElement.getAttribute('data-product-category'),
-        variant: productElement.getAttribute('data-product-variant'),
-        offerType: productElement.getAttribute('data-product-offer-type'),
+        name: el?.getAttribute('data-product-name') || safeInnerText(el || document.body, '.product-name, h1, .product-details__name') || '',
+        price: el?.getAttribute('data-product-price') || safeInnerText(el || document.body, '.price, .product-price, [data-product-price]') || '',
+        catalogPrice: el?.getAttribute('data-product-catalog-price') || '',
+        brand: el?.getAttribute('data-product-brand') || '',
+        category: el?.getAttribute('data-product-category') || '',
+        variant: el?.getAttribute('data-product-variant') || '',
+        offerType: el?.getAttribute('data-product-offer-type') || '',
         quantity: qty,
-        image: U.findProductImageUrl(productElement),
+        image: findProductImageUrl(el || document.body),
         person: personFromLine
     };
 
     let capturedProducts = st.capturedProducts.slice();
     capturedProducts.push(productData);
-    S.setCaptured(capturedProducts);
-    if (NVNS.ui && NVNS.ui.showCapturedProducts) NVNS.ui.showCapturedProducts();
+    setCaptured(capturedProducts);
+    showCapturedProducts();
   };
 
-  C.captureVisibleFromGrid = function captureVisibleFromGrid() {
+export function captureVisibleFromGrid() {
     const cards = document.querySelectorAll('.js-nautilus-AddtoCart');
-    let capturedProducts = S.get().capturedProducts.slice();
+    let capturedProducts = get().capturedProducts.slice();
     let added = 0;
 
     cards.forEach(card => {
@@ -100,24 +101,24 @@
         variant: card.getAttribute('data-product-variant') || '',
         offerType: card.getAttribute('data-product-offer-type') || '',
         quantity: readQtyFromFormNear(card, 1),
-        image: U.findProductImageUrl(card)
+        image: findProductImageUrl(card)
       });
       added++;
     });
 
     if (added > 0) {
-      S.setCaptured(capturedProducts);
-      if (NVNS.ui && NVNS.ui.showCapturedProducts) NVNS.ui.showCapturedProducts();
-      console.log(LOGP, `Capturados ${added} productos visibles del grid`);
+      setCaptured(capturedProducts);
+      showCapturedProducts();
+      log('info', `Capturados ${added} productos visibles del grid`);
       alert(`Capturados ${added} productos visibles`);
     } else {
       alert('No se encontraron productos visibles para capturar.');
     }
   };
 
-  C.captureFailedProductData = function captureFailedProductData() {
+export function captureFailedProductData() {
     try {
-      const st = S.get();
+      const st = get();
       const personFromLine = st.currentEntry.person || '';
       const qtyFromLineRaw = st.currentEntry.qtyFromLine || '1';
       const codeFromLine = st.currentEntry.codeFromLine || '';
@@ -135,18 +136,17 @@
         variant: el?.getAttribute('data-product-variant') || '',
         offerType: el?.getAttribute('data-product-offer-type') || '',
         quantity: readQtyFromFormNear(el || null, Math.max(1, parseInt(qtyFromLineRaw, 10) || 1)),
-        image: U.findProductImageUrl(el || document.body),
+        image: findProductImageUrl(el || document.body),
         person: personFromLine
       };
 
       let arr = st.failed.data.slice();
       arr.push(productData);
-      S.setFailed(st.failed.text, arr);
+      setFailed(st.failed.text, arr);
 
-      if (NVNS.ui && NVNS.ui.showFailedProductsDetails) NVNS.ui.showFailedProductsDetails();
-      console.log(LOGP, 'Fallido capturado (datos)', productData);
+      showFailedProductsDetails();
+      log('info', 'Fallido capturado (datos)', productData);
     } catch (e) {
-      console.warn(LOGP, 'No fue posible capturar datos del fallido:', e);
+      log('warn', 'No fue posible capturar datos del fallido:', e);
     }
   };
-})();

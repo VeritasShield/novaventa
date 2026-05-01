@@ -1,13 +1,9 @@
-﻿﻿(function(){
-  const NVNS = (window.NV = window.NV || {});
-  NVNS.ui = NVNS.ui || {};
-  const UI = NVNS.ui;
-  const U = NVNS.utils || {};
+﻿﻿import { toMoney, parsePrice } from './utils.js';
 
-  UI.renderSummary = function renderSummary(totalQty, totalValueNumber){
+export function renderSummary(totalQty, totalValueNumber){
     const summary = document.createElement('div');
     summary.className = 'summary';
-    const money = U && U.toMoney ? U.toMoney(totalValueNumber || 0) : String(totalValueNumber || 0);
+    const money = toMoney(totalValueNumber || 0);
 
     const spanQty = document.createElement('span');
     const strongQty = document.createElement('strong');
@@ -29,7 +25,7 @@
     return summary;
   };
 
-  UI.renderProductItem = function renderProductItem(p, index, labelOrOpts){
+export function renderProductItem(p, index, labelOrOpts){
     const o = (typeof labelOrOpts === 'string') ? { label: labelOrOpts } : (labelOrOpts || {});
     const label = o.label || (o.type === 'failed' ? 'Fallido' : 'Producto');
     const item = document.createElement('div');
@@ -92,8 +88,8 @@
     const sPrice = document.createElement('strong');
     sPrice.textContent = 'Precio:';
     pPrice.appendChild(sPrice);
-    const priceFmt = (U && U.toMoney && U.parsePrice) ? (p.price ? U.toMoney(U.parsePrice(p.price)) : '') : String(p.price || '');
-    const catFmt = (U && U.toMoney && U.parsePrice) ? (p.catalogPrice ? U.toMoney(U.parsePrice(p.catalogPrice)) : '') : String(p.catalogPrice || '');
+    const priceFmt = p.price ? toMoney(parsePrice(p.price)) : '';
+    const catFmt = p.catalogPrice ? toMoney(parsePrice(p.catalogPrice)) : '';
     pPrice.appendChild(document.createTextNode(' ' + priceFmt));
     if (catFmt) {
       const smallCat = document.createElement('small');
@@ -117,4 +113,3 @@
 
     return item;
   };
-})();

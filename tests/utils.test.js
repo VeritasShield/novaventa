@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import U from '../src/utils.js';
+import * as U from '../src/utils.js';
 
 describe('parseEntryLine', () => {
   it('procesa códigos simples sin cantidad', () => {
