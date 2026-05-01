@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Automatización de Pedidos Novaventa — Full Plus (TM)
 // @namespace    http://tampermonkey.net/
-// @version      3.1.2
+// @version      3.1.3
 // @author
 // @description  Vista para Docs (HTML/PNG recortado), UI flotante, captura ampliada, totales es-CO y atajos.
 // @license      ISC
@@ -10,6 +10,7 @@
 // @source       https://github.com/bemaisama/novaventa.git
 // @supportURL   https://github.com/bemaisama/novaventa/issues
 // @match        https://comercio.novaventa.com.co/nautilusb2bstorefront/nautilus/es/COP/*
+// @match        https://oficinavirtual.novaventa.com/*
 // @grant        GM_addStyle
 // @grant        GM_deleteValue
 // @grant        GM_getValue
@@ -1723,17 +1724,56 @@ body{font-family:Arial,sans-serif;margin:16px;background:#fafafa;color:#222;line
     detailsDiv.appendChild(frag);
   }
   function findProductElementForCode(targetCode) {
-    const nodes = Array.from(document.querySelectorAll(".js-nautilus-AddtoCart, [data-product-code]"));
-    if (!nodes.length) return null;
-    const norm = (s) => String(s || "").toLowerCase();
-    const t = norm(targetCode || "");
-    let el = nodes.find((n) => {
-      const v = norm(n.getAttribute("data-product-code") || "");
-      return v === t || v === t + "_" || v.startsWith(t + "_");
-    });
-    if (el) return el;
-    el = nodes.find((n) => norm(n.getAttribute("data-product-code") || "").includes(t));
-    return el || null;
+    var _a2;
+    const t = String(targetCode || "").trim().toLowerCase();
+    if (!t) return null;
+    const cards = Array.from(document.querySelectorAll('[class*="product-item-card"], .cardproduct'));
+    for (const card of cards) {
+      const clNode = card.querySelector('[class*="details__cl"]');
+      if (clNode) {
+        const text = clNode.textContent || "";
+        const match = text.match(/CL:\s*(\d+)/i);
+        if (match && match[1] === t) return card;
+      }
+      const aNode = card.querySelector('a[href*="/p"]');
+      if (aNode) {
+        const href = aNode.getAttribute("href") || "";
+        const match = href.match(/-(\d+)\/p/i);
+        if (match && match[1] === t) return card;
+      }
+      const dpCode = card.getAttribute("data-product-code") || ((_a2 = card.querySelector("[data-product-code]")) == null ? void 0 : _a2.getAttribute("data-product-code"));
+      if (dpCode && dpCode.toLowerCase().split("_")[0] === t) {
+        return card;
+      }
+    }
+    if (document.querySelector(".product-main, .product-details")) {
+      return document.querySelector(".product-main, .product-details");
+    }
+    return null;
+  }
+  function getExactAddToCartButton(code) {
+    const card = findProductElementForCode(code);
+    if (!card) return null;
+    const btns = Array.from(card.querySelectorAll("button"));
+    for (const btn of btns) {
+      const txt = (btn.textContent || "").trim().toLowerCase();
+      if (!btn.hasAttribute("data-testid") && (txt.includes("agregar") || btn.className.includes("primary")) && !btn.disabled) {
+        return btn;
+      }
+    }
+    const oldSelectors = [
+      '[data-action="ADD_TO_CART"]',
+      'button[name="addToCart"]',
+      "button.js-nautilus-addToCart",
+      "button.add-to-cart",
+      'form.add_to_cart_form button[type="submit"]',
+      ".js-nautilus-AddtoCart button"
+    ];
+    for (const sel of oldSelectors) {
+      const btn = card.querySelector(sel);
+      if (btn && !btn.disabled) return btn;
+    }
+    return null;
   }
   function safeInnerText(ctx, sel) {
     const el = ctx && typeof ctx.querySelector === "function" ? ctx.querySelector(sel) : null;
@@ -1741,73 +1781,75 @@ body{font-family:Arial,sans-serif;margin:16px;background:#fafafa;color:#222;line
   }
   function readQtyFromFormNear(el, defQty) {
     var _a2;
-    const form = (typeof (el == null ? void 0 : el.closest) === "function" ? el.closest("form") : null) || ((_a2 = el == null ? void 0 : el.parentElement) == null ? void 0 : _a2.querySelector("form")) || document.querySelector("form.add_to_cart_form");
     let qty = Math.max(1, parseInt(String(defQty), 10) || 1);
+    if (!el) return qty;
+    const newDOMInput = el.querySelector('input[data-testid="numeric-up-down-input"]');
+    if (newDOMInput) {
+      const n = parseInt(newDOMInput.value, 10);
+      if (!isNaN(n) && n > qty) return n;
+    }
+    const form = (typeof el.closest === "function" ? el.closest("form") : null) || ((_a2 = el.parentElement) == null ? void 0 : _a2.querySelector("form")) || document.querySelector("form.add_to_cart_form");
     if (form) {
       const qtyInput = form.querySelector('input.qtyList, input[name="qty"]');
       if (qtyInput) {
         const n = parseInt(qtyInput.value, 10);
-        if (!isNaN(n) && n > qty) qty = n;
+        if (!isNaN(n) && n > qty) return n;
       }
     }
     return qty;
   }
-  function captureProductData(quantity = 1) {
-    var _a2;
-    const st = get();
-    const personFromLine = st.currentEntry.person || "";
-    const qtyFromLineRaw = st.currentEntry.qtyFromLine;
-    const codeFromLine = st.currentEntry.codeFromLine || "";
-    let el = document.querySelector(".js-nautilus-AddtoCart") || findProductElementForCode(codeFromLine) || document.querySelector(".product-main, .product-details");
-    let qty = Math.max(1, parseInt(qtyFromLineRaw ?? String(quantity), 10) || 1);
-    const fullProductCode = (el == null ? void 0 : el.getAttribute("data-product-code")) || codeFromLine || "";
-    const productCode = fullProductCode.split("_")[0] || fullProductCode;
-    const form = (el == null ? void 0 : el.closest("form")) || ((_a2 = document.querySelector(`form.add_to_cart_form input[name="productCodePost"][value="${fullProductCode}"]`)) == null ? void 0 : _a2.closest("form")) || document.querySelector("form.add_to_cart_form");
-    if (form) {
-      const qtyInput = form.querySelector('input.qtyList, input[name="qty"]');
-      if (qtyInput) {
-        const n = parseInt(qtyInput.value, 10);
-        if (!isNaN(n) && n > qty) qty = n;
-      }
+  function extractProductData(el, fallbackCode, qtyRaw, person) {
+    var _a2, _b2, _c2, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q;
+    const clMatch = (_c2 = (_b2 = (_a2 = el == null ? void 0 : el.querySelector('[class*="details__cl"]')) == null ? void 0 : _a2.textContent) == null ? void 0 : _b2.match(/CL:\s*(\d+)/i)) == null ? void 0 : _c2[1];
+    const hrefMatch = (_f = (_e = (_d = el == null ? void 0 : el.querySelector('a[href*="/p"]')) == null ? void 0 : _d.getAttribute("href")) == null ? void 0 : _e.match(/-(\d+)\/p/i)) == null ? void 0 : _f[1];
+    const dpMatch = (_g = el == null ? void 0 : el.getAttribute("data-product-code")) == null ? void 0 : _g.split("_")[0];
+    const code = clMatch || hrefMatch || dpMatch || fallbackCode;
+    const name = ((_i = (_h = el == null ? void 0 : el.querySelector('[class*="details__descripcion"]')) == null ? void 0 : _h.textContent) == null ? void 0 : _i.trim()) || safeInnerText(el, ".product-name, h1, .product-details__name") || (el == null ? void 0 : el.getAttribute("data-product-name")) || "";
+    const price = ((_k = (_j = el == null ? void 0 : el.querySelector('[class*="dinero_precios__actual"]')) == null ? void 0 : _j.textContent) == null ? void 0 : _k.trim()) || ((_m = (_l = el == null ? void 0 : el.querySelector('[class*="puntos_valor-comercial__precio"]')) == null ? void 0 : _l.textContent) == null ? void 0 : _m.trim()) || safeInnerText(el, ".price, .product-price, [data-product-price]") || (el == null ? void 0 : el.getAttribute("data-product-price")) || "";
+    const catalogPriceRaw = ((_n = el == null ? void 0 : el.querySelector('[class*="dinero_precio-lista"]')) == null ? void 0 : _n.textContent) || "";
+    const catalogPrice = catalogPriceRaw.replace(/Precio lista/i, "").trim() || (el == null ? void 0 : el.getAttribute("data-product-catalog-price")) || "";
+    const brand = ((_p = (_o = el == null ? void 0 : el.querySelector('[class*="details__marca"]')) == null ? void 0 : _o.textContent) == null ? void 0 : _p.trim()) || (el == null ? void 0 : el.getAttribute("data-product-brand")) || "";
+    const qty = readQtyFromFormNear(el, Math.max(1, parseInt(qtyRaw, 10) || 1));
+    let image = "";
+    if (el) {
+      const newImg = el.querySelector('img[class*="heading_image__img"]');
+      if (newImg) image = newImg.getAttribute("src") || ((_q = newImg.getAttribute("srcset")) == null ? void 0 : _q.split(" ")[0]) || "";
     }
-    const productData = {
-      code: productCode,
-      name: (el == null ? void 0 : el.getAttribute("data-product-name")) || safeInnerText(el || document.body, ".product-name, h1, .product-details__name") || "",
-      price: (el == null ? void 0 : el.getAttribute("data-product-price")) || safeInnerText(el || document.body, ".price, .product-price, [data-product-price]") || "",
-      catalogPrice: (el == null ? void 0 : el.getAttribute("data-product-catalog-price")) || "",
-      brand: (el == null ? void 0 : el.getAttribute("data-product-brand")) || "",
+    if (!image && el) image = findProductImageUrl(el);
+    return {
+      code,
+      name,
+      price,
+      catalogPrice,
+      brand,
       category: (el == null ? void 0 : el.getAttribute("data-product-category")) || "",
       variant: (el == null ? void 0 : el.getAttribute("data-product-variant")) || "",
       offerType: (el == null ? void 0 : el.getAttribute("data-product-offer-type")) || "",
       quantity: qty,
-      image: findProductImageUrl(el || document.body),
-      person: personFromLine
+      image,
+      person
     };
+  }
+  function captureProductData(quantity = 1) {
+    const st = get();
+    const personFromLine = st.currentEntry.person || "";
+    const qtyFromLineRaw = st.currentEntry.qtyFromLine;
+    const codeFromLine = st.currentEntry.codeFromLine || "";
+    const el = findProductElementForCode(codeFromLine);
+    const productData = extractProductData(el, codeFromLine, qtyFromLineRaw ?? String(quantity), personFromLine);
     let capturedProducts = st.capturedProducts.slice();
     capturedProducts.push(productData);
     setCaptured(capturedProducts);
     showCapturedProducts();
   }
   function captureVisibleFromGrid() {
-    const cards = document.querySelectorAll(".js-nautilus-AddtoCart");
+    const cards = Array.from(document.querySelectorAll('[class*="product-item-card"], .js-nautilus-AddtoCart'));
     let capturedProducts = get().capturedProducts.slice();
     let added = 0;
     cards.forEach((card) => {
-      const fullCode = card.getAttribute("data-product-code") || "";
-      const code = fullCode.split("_")[0] || fullCode;
-      if (!code) return;
-      capturedProducts.push({
-        code,
-        name: card.getAttribute("data-product-name") || "",
-        price: card.getAttribute("data-product-price") || "",
-        catalogPrice: card.getAttribute("data-product-catalog-price") || "",
-        brand: card.getAttribute("data-product-brand") || "",
-        category: card.getAttribute("data-product-category") || "",
-        variant: card.getAttribute("data-product-variant") || "",
-        offerType: card.getAttribute("data-product-offer-type") || "",
-        quantity: readQtyFromFormNear(card, 1),
-        image: findProductImageUrl(card)
-      });
+      const pd = extractProductData(card, "", "1", "");
+      if (!pd.code) return;
+      capturedProducts.push(pd);
       added++;
     });
     if (added > 0) {
@@ -1826,20 +1868,7 @@ body{font-family:Arial,sans-serif;margin:16px;background:#fafafa;color:#222;line
       const qtyFromLineRaw = st.currentEntry.qtyFromLine || "1";
       const codeFromLine = st.currentEntry.codeFromLine || "";
       const el = findProductElementForCode(codeFromLine);
-      const fullCode = (el == null ? void 0 : el.getAttribute("data-product-code")) || codeFromLine || "";
-      const productData = {
-        code: fullCode.split("_")[0] || fullCode,
-        name: (el == null ? void 0 : el.getAttribute("data-product-name")) || safeInnerText(el || document.body, ".product-name, h1, .product-details__name") || "",
-        price: (el == null ? void 0 : el.getAttribute("data-product-price")) || safeInnerText(el || document.body, ".price, .product-price, [data-product-price]") || "",
-        catalogPrice: (el == null ? void 0 : el.getAttribute("data-product-catalog-price")) || "",
-        brand: (el == null ? void 0 : el.getAttribute("data-product-brand")) || "",
-        category: (el == null ? void 0 : el.getAttribute("data-product-category")) || "",
-        variant: (el == null ? void 0 : el.getAttribute("data-product-variant")) || "",
-        offerType: (el == null ? void 0 : el.getAttribute("data-product-offer-type")) || "",
-        quantity: readQtyFromFormNear(el || null, Math.max(1, parseInt(qtyFromLineRaw, 10) || 1)),
-        image: findProductImageUrl(el || document.body),
-        person: personFromLine
-      };
+      const productData = extractProductData(el, codeFromLine, qtyFromLineRaw, personFromLine);
       let arr = st.failed.data.slice();
       arr.push(productData);
       setFailed(st.failed.text, arr);
@@ -1850,8 +1879,8 @@ body{font-family:Arial,sans-serif;margin:16px;background:#fafafa;color:#222;line
     }
   }
   const LOGP = "[NV TM]";
-  function processNextProduct() {
-    var _a2;
+  async function processNextProduct() {
+    var _a2, _b2, _c2;
     if (!((_a2 = get()) == null ? void 0 : _a2.flags.isAddingProducts)) return;
     const products = get().queue.products;
     if (products.length === 0) {
@@ -1867,7 +1896,26 @@ body{font-family:Arial,sans-serif;margin:16px;background:#fafafa;color:#222;line
     }
     setCurrentEntry({ person: person || "", qtyFromLine: String(quantity || "1"), codeFromLine: String(code || "") });
     console.log(LOGP, `Procesando producto código ${code} cantidad ${quantity} persona "${person}"`);
-    window.location.href = `https://comercio.novaventa.com.co/nautilusb2bstorefront/nautilus/es/COP/search/?text=${encodeURIComponent(code)}`;
+    const searchToggleBtn = document.querySelector('button.site-header-content-ecommerce_option--search__lBgAH, button[aria-label*="buscador"]');
+    let searchInput = document.querySelector('[data-testid="buscador-input"]');
+    if (!searchInput && searchToggleBtn) {
+      console.log(LOGP, "Buscador oculto, expandiendo...");
+      searchToggleBtn.click();
+      await randomDelay(300, 600);
+      searchInput = document.querySelector('[data-testid="buscador-input"]');
+    }
+    if (searchInput) {
+      const nativeInputValueSetter = (_b2 = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")) == null ? void 0 : _b2.set;
+      nativeInputValueSetter == null ? void 0 : nativeInputValueSetter.call(searchInput, code);
+      searchInput.dispatchEvent(new Event("input", { bubbles: true }));
+      const searchBtn = ((_c2 = searchInput.form) == null ? void 0 : _c2.querySelector('button[type="submit"]')) || document.querySelector("button.buscador-input_form__btn__Ha2rK");
+      if (searchBtn) searchBtn.click();
+      else if (searchInput.form) searchInput.form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+      setTimeout(() => checkForProductButton(0), 2e3);
+    } else {
+      const baseUrl = window.location.origin.includes("oficinavirtual.novaventa.com") ? "https://oficinavirtual.novaventa.com/search" : "https://comercio.novaventa.com.co/nautilusb2bstorefront/nautilus/es/COP/search";
+      window.location.href = `${baseUrl}/?text=${encodeURIComponent(code)}`;
+    }
   }
   async function checkForProductButton(attempts = 0) {
     var _a2;
@@ -1876,34 +1924,16 @@ body{font-family:Arial,sans-serif;margin:16px;background:#fafafa;color:#222;line
       handleError("Navegación incorrecta, redirigido a la página de inicio.");
       return;
     }
-    function __nvFindAddToCartButton() {
-      const selectors = [
-        '[data-action="ADD_TO_CART"]',
-        'button[name="addToCart"]',
-        "button.js-nautilus-addToCart",
-        "button.add-to-cart",
-        'form.add_to_cart_form button[type="submit"]',
-        "form.add_to_cart_form button",
-        ".js-nautilus-AddtoCart button",
-        '.product-details form button[type="submit"]',
-        '.product-main form button[type="submit"]'
-      ];
-      for (const sel of selectors) {
-        const btn = document.querySelector(sel);
-        if (btn && !btn.disabled) return btn;
-      }
-      return null;
+    const products = get().queue.products.slice();
+    if (!products.length) {
+      setFlags({ isAddingProducts: false });
+      return;
     }
-    const buttonToClick = __nvFindAddToCartButton();
+    const { code, quantity: quantitySpecified } = parseEntryLine(products[0] || "");
+    const quantity = (quantitySpecified || "1").trim();
+    const buttonToClick = getExactAddToCartButton(code);
     if (buttonToClick) {
       console.log(LOGP, "Botón encontrado, intentando agregar al carrito.");
-      const products = get().queue.products.slice();
-      if (!products.length) {
-        setFlags({ isAddingProducts: false });
-        return;
-      }
-      const { code, quantity: quantitySpecified } = parseEntryLine(products[0] || "");
-      const quantity = (quantitySpecified || "1").trim();
       if (quantity === "1") {
         captureProductData(1);
         buttonToClick.click();
@@ -1931,9 +1961,9 @@ body{font-family:Arial,sans-serif;margin:16px;background:#fafafa;color:#222;line
         try {
           setCooldown(`Buscando Botón (intento ${attempts + 1}/10)`, 1500, () => {
             try {
-              const products = get().queue.products.slice();
-              const skipped = products.shift();
-              setQueue(products);
+              const products2 = get().queue.products.slice();
+              const skipped = products2.shift();
+              setQueue(products2);
               const st = get();
               setFailed((st.failed.text || "") + (skipped || "") + "\n", st.failed.data);
               try {
@@ -1967,9 +1997,9 @@ body{font-family:Arial,sans-serif;margin:16px;background:#fafafa;color:#222;line
         } catch (e) {
           log("debug", "Failed to generate hints for error report", e);
         }
-        const products = get().queue.products.slice();
-        const failedProduct = products.shift();
-        setQueue(products);
+        const products2 = get().queue.products.slice();
+        const failedProduct = products2.shift();
+        setQueue(products2);
         const st = get();
         const failedText = (st.failed.text || "") + (failedProduct || "") + "\n";
         setFailed(failedText, st.failed.data);

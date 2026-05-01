@@ -1,6 +1,6 @@
 import { waitForBody, parseEntryLine, reportError, randomDelay, log } from './src/utils.js';
 import { get, setUI, setFlags, setQueue, setCaptured, setFailed, setCurrentEntry, init as initState } from './src/state.js';
-import { captureProductData, captureFailedProductData, captureVisibleFromGrid } from './src/capture.js';
+import { captureProductData, captureFailedProductData, captureVisibleFromGrid, getExactAddToCartButton } from './src/capture.js';
 import { injectUI, setCooldown, hideCooldown, showCapturedProducts, showFailedProductsDetails } from './src/ui.js';
 // @ts-ignore
 import './content.css';
@@ -8,7 +8,7 @@ import './content.css';
 const LOGP = '[NV TM]';
 
   // ========= Lógica de Navegación =========
-    function processNextProduct() {
+    async function processNextProduct() {
         if (!get()?.flags.isAddingProducts) return;
         const products = get()!.queue.products;
         if (products.length === 0) { 
@@ -24,8 +24,35 @@ const LOGP = '[NV TM]';
         setCurrentEntry({ person: person || '', qtyFromLine: String(quantity || '1'), codeFromLine: String(code || '') });
 
         console.log(LOGP, `Procesando producto código ${code} cantidad ${quantity} persona "${person}"`);
-        window.location.href =
-            `https://comercio.novaventa.com.co/nautilusb2bstorefront/nautilus/es/COP/search/?text=${encodeURIComponent(code)}`;
+        
+        const searchToggleBtn = document.querySelector<HTMLButtonElement>('button.site-header-content-ecommerce_option--search__lBgAH, button[aria-label*="buscador"]');
+        let searchInput = document.querySelector<HTMLInputElement>('[data-testid="buscador-input"]');
+
+        if (!searchInput && searchToggleBtn) {
+            console.log(LOGP, 'Buscador oculto, expandiendo...');
+            searchToggleBtn.click();
+            await randomDelay(300, 600); // Esperar render del DOM virtual
+            searchInput = document.querySelector<HTMLInputElement>('[data-testid="buscador-input"]');
+        }
+
+        if (searchInput) {
+            const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+            nativeInputValueSetter?.call(searchInput, code);
+            searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+            
+            const searchBtn = searchInput.form?.querySelector<HTMLButtonElement>('button[type="submit"]') 
+                           || document.querySelector<HTMLButtonElement>('button.buscador-input_form__btn__Ha2rK');
+            if (searchBtn) searchBtn.click();
+            else if (searchInput.form) searchInput.form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+            
+            // Al usar SPA no hay recarga de página. Iniciamos la búsqueda del botón asíncronamente
+            setTimeout(() => checkForProductButton(0), 2000);
+        } else {
+            const baseUrl = window.location.origin.includes('oficinavirtual.novaventa.com')
+                ? 'https://oficinavirtual.novaventa.com/search'
+                : 'https://comercio.novaventa.com.co/nautilusb2bstorefront/nautilus/es/COP/search';
+            window.location.href = `${baseUrl}/?text=${encodeURIComponent(code)}`;
+        }
     }
 
   // ========= Agregar al carrito =========
@@ -37,36 +64,18 @@ const LOGP = '[NV TM]';
       return;
     }
 
-    function __nvFindAddToCartButton(): HTMLButtonElement | null {
-      const selectors = [
-        '[data-action="ADD_TO_CART"]',
-        'button[name="addToCart"]',
-        'button.js-nautilus-addToCart',
-        'button.add-to-cart',
-        'form.add_to_cart_form button[type="submit"]',
-        'form.add_to_cart_form button',
-        '.js-nautilus-AddtoCart button',
-        '.product-details form button[type="submit"]',
-        '.product-main form button[type="submit"]'
-      ];
-      for (const sel of selectors) {
-        const btn = document.querySelector<HTMLButtonElement>(sel);
-        if (btn && !btn.disabled) return btn;
-      }
-      return null;
+    const products = get()!.queue.products.slice();
+    if (!products.length) {
+      setFlags({ isAddingProducts: false });
+      return;
     }
-    const buttonToClick = __nvFindAddToCartButton();
+
+    const { code, quantity: quantitySpecified } = parseEntryLine(products[0] || '');
+    const quantity = (quantitySpecified || '1').trim();
+
+    const buttonToClick = getExactAddToCartButton(code);
     if (buttonToClick) {
       console.log(LOGP, 'Botón encontrado, intentando agregar al carrito.');
-
-      const products = get()!.queue.products.slice();
-      if (!products.length) {
-        setFlags({ isAddingProducts: false });
-        return;
-      }
-
-      const { code, quantity: quantitySpecified } = parseEntryLine(products[0] || '');
-      const quantity = (quantitySpecified || '1').trim();
 
       if (quantity === '1') {
         captureProductData(1);
