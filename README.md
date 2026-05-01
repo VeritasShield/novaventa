@@ -1,6 +1,6 @@
 # Novaventa Full Plus - Chrome Extension
 
-![Version](https://img.shields.io/badge/version-3.1.4-blue.svg)
+![Version](https://img.shields.io/badge/version-3.1.5-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-Chrome_|_Edge-green.svg)
 ![Build](https://img.shields.io/badge/build-Vite-646CFF.svg)
 

@@ -8,7 +8,7 @@ export default defineConfig({
       userscript: {
         name: 'Automatización de Pedidos Novaventa — Full Plus (TM)',
         namespace: 'http://tampermonkey.net/',
-        version: '3.1.4',
+        version: '3.1.5',
         description: 'Vista para Docs (HTML/PNG recortado), UI flotante, captura ampliada, totales es-CO y atajos.',
         match: [
           'https://comercio.novaventa.com.co/nautilusb2bstorefront/nautilus/es/COP/*',

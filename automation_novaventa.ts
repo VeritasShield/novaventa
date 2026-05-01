@@ -47,7 +47,7 @@ const LOGP = '[NV TM]';
             else if (searchInput.form) searchInput.form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
             
             // Al usar SPA no hay recarga de página. Iniciamos la búsqueda del botón asíncronamente
-            setTimeout(() => checkForProductButton(0), 2000);
+            setTimeout(() => checkForProductButton(0).catch(e => log('error', 'Error en búsqueda de botón asíncrona', e)), 2000);
         } else {
             const baseUrl = window.location.origin.includes('oficinavirtual.novaventa.com')
                 ? 'https://oficinavirtual.novaventa.com/search'
@@ -84,28 +84,46 @@ const LOGP = '[NV TM]';
       if (quantityInt > 1) {
         const card = buttonToClick.closest<HTMLElement>('[class*="product-item-card"], .cardproduct, .product-main, .product-details');
         const qtyInput = card?.querySelector<HTMLInputElement>('input[data-testid="numeric-up-down-input"], input.qtyList, input[name="qty"]');
+        const plusBtn = card ? Array.from(card.querySelectorAll<HTMLButtonElement>('button')).find(b => b.querySelector('.fa-plus') || b.getAttribute('data-testid') === 'numeric-up-down__down') : null;
         
-        if (qtyInput) {
-          const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
-          nativeInputValueSetter?.call(qtyInput, quantityInt.toString());
+        if (plusBtn && !plusBtn.disabled) {
+          console.log(LOGP, 'Ajustando cantidad mediante botón (+).');
+          for (let i = 1; i < quantityInt; i++) {
+            if (plusBtn.disabled) break;
+            plusBtn.click();
+            await randomDelay(150, 250);
+          }
+          await randomDelay(300, 500); // Esperar que React estabilice la validación interna
+        } else if (qtyInput && !qtyInput.disabled) {
+          qtyInput.focus();
+          const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+          setter?.call(qtyInput, quantityInt.toString());
+          const tracker = (qtyInput as any)._valueTracker;
+          if (tracker) tracker.setValue('');
           qtyInput.dispatchEvent(new Event('input', { bubbles: true }));
           qtyInput.dispatchEvent(new Event('change', { bubbles: true }));
-          await randomDelay(400, 700); // Jitter para sincronización de estado en React
-        } else {
-          console.warn(LOGP, 'Input de cantidad no encontrado, usando clics múltiples (fallback).');
+          qtyInput.blur();
+          await randomDelay(400, 700);
+        } else if (!qtyInput) {
+          console.warn(LOGP, 'Controles no encontrados, usando clics múltiples en Agregar (fallback).');
           for (let i = 1; i < quantityInt; i++) {
+            if (buttonToClick.disabled) break;
             buttonToClick.click();
-            await randomDelay(1500, 2500);
+            await randomDelay(1200, 2200);
           }
         }
       }
 
-      buttonToClick.click();
+      if (!buttonToClick.disabled) {
+        buttonToClick.click();
+      } else {
+        console.warn(LOGP, 'El botón de Agregar se deshabilitó, omitiendo clic final.');
+      }
       await randomDelay(2500, 3500); // Rate limiting dinámico final
       console.log(LOGP, 'Producto agregado correctamente al carrito.');
       products.shift();
       setQueue(products);
-      processNextProduct();
+      processNextProduct().catch(e => log('error', 'Error al procesar siguiente producto', e));
     } else {
       if (attempts < 10) {
         console.warn(LOGP, `Intento ${attempts}: Botón AddToCart no encontrado. Reintentando...`);
@@ -124,14 +142,14 @@ const LOGP = '[NV TM]';
               reportError(`Producto saltado: ${skipped||''}`, { ui: true, level: 'warn', timeoutMs: 3000 });
             } catch(e) { log('warn', 'Failed to process skipped product', e); }
             hideCooldown();
-            processNextProduct();
+            processNextProduct().catch(e => log('error', 'Error al avanzar tras salto manual', e));
           });
         } catch(e) { log('debug', 'Error during cooldown setup', e); }
         setTimeout(() => { 
           if (isSkipped) return;
           hideCooldown(); 
           if (get()?.flags.isAddingProducts) {
-            checkForProductButton(attempts + 1);
+            checkForProductButton(attempts + 1).catch(e => log('error', 'Error en reintento de botón', e));
           }
         }, 1500);
       } else {
@@ -157,7 +175,7 @@ const LOGP = '[NV TM]';
         try { captureFailedProductData(); } catch(e) { log('warn', 'Failed to capture failed product data', e); }
 
         console.error(LOGP, 'Botón AddToCart no encontrado tras múltiples intentos.');
-        processNextProduct();
+        processNextProduct().catch(e => log('error', 'Error al avanzar tras fallo de botón', e));
       }
     }
   }
@@ -177,7 +195,7 @@ const LOGP = '[NV TM]';
       setFlags({ isAddingProducts: true });
       setQueue(text.split('\n').map((s: string) => s.trim()).filter(Boolean));
       injectUI(appCallbacks);
-      processNextProduct();
+      processNextProduct().catch(e => log('error', 'Error iniciando proceso maestro', e));
     },
     onStopAdding: () => {
       setFlags({ isAddingProducts: false });
@@ -210,7 +228,7 @@ const LOGP = '[NV TM]';
       // segundo intento por si la SPA hace swaps de DOM al inicio
       setTimeout(() => injectUI(appCallbacks), 1200);
 
-      setTimeout(() => { if (get()?.flags.isAddingProducts) checkForProductButton(); }, 1500);
+      setTimeout(() => { if (get()?.flags.isAddingProducts) checkForProductButton().catch(e => log('error', 'Error en reanudación asíncrona', e)); }, 1500);
 
       // Reinsertar UI si la SPA la elimina (incluye la barra minimizada) con debounce
       try { window.__nvUiObserverPaused = false; } catch(e) { log('debug', 'Error resetting observer pause flag', e); }

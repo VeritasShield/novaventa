@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Automatización de Pedidos Novaventa — Full Plus (TM)
 // @namespace    http://tampermonkey.net/
-// @version      3.1.4
+// @version      3.1.5
 // @author
 // @description  Vista para Docs (HTML/PNG recortado), UI flotante, captura ampliada, totales es-CO y atajos.
 // @license      ISC
@@ -1912,7 +1912,7 @@ body{font-family:Arial,sans-serif;margin:16px;background:#fafafa;color:#222;line
       const searchBtn = ((_c2 = searchInput.form) == null ? void 0 : _c2.querySelector('button[type="submit"]')) || document.querySelector("button.buscador-input_form__btn__Ha2rK");
       if (searchBtn) searchBtn.click();
       else if (searchInput.form) searchInput.form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
-      setTimeout(() => checkForProductButton(0), 2e3);
+      setTimeout(() => checkForProductButton(0).catch((e) => log("error", "Error en búsqueda de botón asíncrona", e)), 2e3);
     } else {
       const baseUrl = window.location.origin.includes("oficinavirtual.novaventa.com") ? "https://oficinavirtual.novaventa.com/search" : "https://comercio.novaventa.com.co/nautilusb2bstorefront/nautilus/es/COP/search";
       window.location.href = `${baseUrl}/?text=${encodeURIComponent(code)}`;
@@ -1940,26 +1940,44 @@ body{font-family:Arial,sans-serif;margin:16px;background:#fafafa;color:#222;line
       if (quantityInt > 1) {
         const card = buttonToClick.closest('[class*="product-item-card"], .cardproduct, .product-main, .product-details');
         const qtyInput = card == null ? void 0 : card.querySelector('input[data-testid="numeric-up-down-input"], input.qtyList, input[name="qty"]');
-        if (qtyInput) {
-          const nativeInputValueSetter = (_b2 = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")) == null ? void 0 : _b2.set;
-          nativeInputValueSetter == null ? void 0 : nativeInputValueSetter.call(qtyInput, quantityInt.toString());
+        const plusBtn = card ? Array.from(card.querySelectorAll("button")).find((b) => b.querySelector(".fa-plus") || b.getAttribute("data-testid") === "numeric-up-down__down") : null;
+        if (plusBtn && !plusBtn.disabled) {
+          console.log(LOGP, "Ajustando cantidad mediante botón (+).");
+          for (let i = 1; i < quantityInt; i++) {
+            if (plusBtn.disabled) break;
+            plusBtn.click();
+            await randomDelay(150, 250);
+          }
+          await randomDelay(300, 500);
+        } else if (qtyInput && !qtyInput.disabled) {
+          qtyInput.focus();
+          const setter = (_b2 = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")) == null ? void 0 : _b2.set;
+          setter == null ? void 0 : setter.call(qtyInput, quantityInt.toString());
+          const tracker = qtyInput._valueTracker;
+          if (tracker) tracker.setValue("");
           qtyInput.dispatchEvent(new Event("input", { bubbles: true }));
           qtyInput.dispatchEvent(new Event("change", { bubbles: true }));
+          qtyInput.blur();
           await randomDelay(400, 700);
-        } else {
-          console.warn(LOGP, "Input de cantidad no encontrado, usando clics múltiples (fallback).");
+        } else if (!qtyInput) {
+          console.warn(LOGP, "Controles no encontrados, usando clics múltiples en Agregar (fallback).");
           for (let i = 1; i < quantityInt; i++) {
+            if (buttonToClick.disabled) break;
             buttonToClick.click();
-            await randomDelay(1500, 2500);
+            await randomDelay(1200, 2200);
           }
         }
       }
-      buttonToClick.click();
+      if (!buttonToClick.disabled) {
+        buttonToClick.click();
+      } else {
+        console.warn(LOGP, "El botón de Agregar se deshabilitó, omitiendo clic final.");
+      }
       await randomDelay(2500, 3500);
       console.log(LOGP, "Producto agregado correctamente al carrito.");
       products.shift();
       setQueue(products);
-      processNextProduct();
+      processNextProduct().catch((e) => log("error", "Error al procesar siguiente producto", e));
     } else {
       if (attempts < 10) {
         console.warn(LOGP, `Intento ${attempts}: Botón AddToCart no encontrado. Reintentando...`);
@@ -1983,7 +2001,7 @@ body{font-family:Arial,sans-serif;margin:16px;background:#fafafa;color:#222;line
               log("warn", "Failed to process skipped product", e);
             }
             hideCooldown();
-            processNextProduct();
+            processNextProduct().catch((e) => log("error", "Error al avanzar tras salto manual", e));
           });
         } catch (e) {
           log("debug", "Error during cooldown setup", e);
@@ -1993,7 +2011,7 @@ body{font-family:Arial,sans-serif;margin:16px;background:#fafafa;color:#222;line
           if (isSkipped) return;
           hideCooldown();
           if ((_a3 = get()) == null ? void 0 : _a3.flags.isAddingProducts) {
-            checkForProductButton(attempts + 1);
+            checkForProductButton(attempts + 1).catch((e) => log("error", "Error en reintento de botón", e));
           }
         }, 1500);
       } else {
@@ -2021,7 +2039,7 @@ body{font-family:Arial,sans-serif;margin:16px;background:#fafafa;color:#222;line
           log("warn", "Failed to capture failed product data", e);
         }
         console.error(LOGP, "Botón AddToCart no encontrado tras múltiples intentos.");
-        processNextProduct();
+        processNextProduct().catch((e) => log("error", "Error al avanzar tras fallo de botón", e));
       }
     }
   }
@@ -2037,7 +2055,7 @@ body{font-family:Arial,sans-serif;margin:16px;background:#fafafa;color:#222;line
       setFlags({ isAddingProducts: true });
       setQueue(text.split("\n").map((s) => s.trim()).filter(Boolean));
       injectUI(appCallbacks);
-      processNextProduct();
+      processNextProduct().catch((e) => log("error", "Error iniciando proceso maestro", e));
     },
     onStopAdding: () => {
       setFlags({ isAddingProducts: false });
@@ -2068,7 +2086,7 @@ body{font-family:Arial,sans-serif;margin:16px;background:#fafafa;color:#222;line
       setTimeout(() => injectUI(appCallbacks), 1200);
       setTimeout(() => {
         var _a3;
-        if ((_a3 = get()) == null ? void 0 : _a3.flags.isAddingProducts) checkForProductButton();
+        if ((_a3 = get()) == null ? void 0 : _a3.flags.isAddingProducts) checkForProductButton().catch((e) => log("error", "Error en reanudación asíncrona", e));
       }, 1500);
       try {
         window.__nvUiObserverPaused = false;
