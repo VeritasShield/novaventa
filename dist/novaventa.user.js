@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Automatización de Pedidos Novaventa — Full Plus (TM)
 // @namespace    http://tampermonkey.net/
-// @version      3.1.3
+// @version      3.1.4
 // @author
 // @description  Vista para Docs (HTML/PNG recortado), UI flotante, captura ampliada, totales es-CO y atajos.
 // @license      ISC
@@ -1908,6 +1908,7 @@ body{font-family:Arial,sans-serif;margin:16px;background:#fafafa;color:#222;line
       const nativeInputValueSetter = (_b2 = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")) == null ? void 0 : _b2.set;
       nativeInputValueSetter == null ? void 0 : nativeInputValueSetter.call(searchInput, code);
       searchInput.dispatchEvent(new Event("input", { bubbles: true }));
+      searchInput.dispatchEvent(new Event("change", { bubbles: true }));
       const searchBtn = ((_c2 = searchInput.form) == null ? void 0 : _c2.querySelector('button[type="submit"]')) || document.querySelector("button.buscador-input_form__btn__Ha2rK");
       if (searchBtn) searchBtn.click();
       else if (searchInput.form) searchInput.form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
@@ -1918,7 +1919,7 @@ body{font-family:Arial,sans-serif;margin:16px;background:#fafafa;color:#222;line
     }
   }
   async function checkForProductButton(attempts = 0) {
-    var _a2;
+    var _a2, _b2;
     if (!((_a2 = get()) == null ? void 0 : _a2.flags.isAddingProducts)) return;
     if (window.location.href.includes("/homepage")) {
       handleError("Navegación incorrecta, redirigido a la página de inicio.");
@@ -1934,32 +1935,38 @@ body{font-family:Arial,sans-serif;margin:16px;background:#fafafa;color:#222;line
     const buttonToClick = getExactAddToCartButton(code);
     if (buttonToClick) {
       console.log(LOGP, "Botón encontrado, intentando agregar al carrito.");
-      if (quantity === "1") {
-        captureProductData(1);
-        buttonToClick.click();
-        await randomDelay(2500, 3500);
-        console.log(LOGP, "Producto agregado correctamente al carrito.");
-        products.shift();
-        setQueue(products);
-        processNextProduct();
-      } else {
-        const quantityInt = Math.max(1, parseInt(quantity, 10) || 1);
-        captureProductData(quantityInt);
-        for (let i = 0; i < quantityInt; i++) {
-          buttonToClick.click();
-          await randomDelay(2e3, 3200);
+      const quantityInt = Math.max(1, parseInt(quantity, 10) || 1);
+      captureProductData(quantityInt);
+      if (quantityInt > 1) {
+        const card = buttonToClick.closest('[class*="product-item-card"], .cardproduct, .product-main, .product-details');
+        const qtyInput = card == null ? void 0 : card.querySelector('input[data-testid="numeric-up-down-input"], input.qtyList, input[name="qty"]');
+        if (qtyInput) {
+          const nativeInputValueSetter = (_b2 = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")) == null ? void 0 : _b2.set;
+          nativeInputValueSetter == null ? void 0 : nativeInputValueSetter.call(qtyInput, quantityInt.toString());
+          qtyInput.dispatchEvent(new Event("input", { bubbles: true }));
+          qtyInput.dispatchEvent(new Event("change", { bubbles: true }));
+          await randomDelay(400, 700);
+        } else {
+          console.warn(LOGP, "Input de cantidad no encontrado, usando clics múltiples (fallback).");
+          for (let i = 1; i < quantityInt; i++) {
+            buttonToClick.click();
+            await randomDelay(1500, 2500);
+          }
         }
-        await randomDelay(800, 1500);
-        console.log(LOGP, "Producto agregado correctamente al carrito.");
-        products.shift();
-        setQueue(products);
-        processNextProduct();
       }
+      buttonToClick.click();
+      await randomDelay(2500, 3500);
+      console.log(LOGP, "Producto agregado correctamente al carrito.");
+      products.shift();
+      setQueue(products);
+      processNextProduct();
     } else {
       if (attempts < 10) {
         console.warn(LOGP, `Intento ${attempts}: Botón AddToCart no encontrado. Reintentando...`);
+        let isSkipped = false;
         try {
           setCooldown(`Buscando Botón (intento ${attempts + 1}/10)`, 1500, () => {
+            isSkipped = true;
             try {
               const products2 = get().queue.products.slice();
               const skipped = products2.shift();
@@ -1982,8 +1989,12 @@ body{font-family:Arial,sans-serif;margin:16px;background:#fafafa;color:#222;line
           log("debug", "Error during cooldown setup", e);
         }
         setTimeout(() => {
+          var _a3;
+          if (isSkipped) return;
           hideCooldown();
-          checkForProductButton(attempts + 1);
+          if ((_a3 = get()) == null ? void 0 : _a3.flags.isAddingProducts) {
+            checkForProductButton(attempts + 1);
+          }
         }, 1500);
       } else {
         try {
@@ -2072,7 +2083,7 @@ body{font-family:Arial,sans-serif;margin:16px;background:#fafafa;color:#222;line
       const mo = new MutationObserver(() => {
         if (window.__nvUiObserverPaused) return;
         if (window.__nvUiObserverTimer) return;
-        window.__nvUiObserverTimer = setTimeout(() => {
+        window.__nvUiObserverTimer = window.setTimeout(() => {
           try {
             window.__nvUiObserverTimer = null;
           } catch (e) {

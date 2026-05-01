@@ -39,6 +39,7 @@ const LOGP = '[NV TM]';
             const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
             nativeInputValueSetter?.call(searchInput, code);
             searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+            searchInput.dispatchEvent(new Event('change', { bubbles: true }));
             
             const searchBtn = searchInput.form?.querySelector<HTMLButtonElement>('button[type="submit"]') 
                            || document.querySelector<HTMLButtonElement>('button.buscador-input_form__btn__Ha2rK');
@@ -77,33 +78,42 @@ const LOGP = '[NV TM]';
     if (buttonToClick) {
       console.log(LOGP, 'Botón encontrado, intentando agregar al carrito.');
 
-      if (quantity === '1') {
-        captureProductData(1);
-        buttonToClick.click();
-        await randomDelay(2500, 3500); // Rate limiting dinámico (Jitter)
-        console.log(LOGP, 'Producto agregado correctamente al carrito.');
-        products.shift();
-        setQueue(products);
-        processNextProduct();
-      } else {
-        const quantityInt = Math.max(1, parseInt(quantity, 10) || 1);
-        captureProductData(quantityInt);
-        for (let i = 0; i < quantityInt; i++) {
-          buttonToClick.click();
-          await randomDelay(2000, 3200); // Jitter individual anti-baneos
+      const quantityInt = Math.max(1, parseInt(quantity, 10) || 1);
+      captureProductData(quantityInt);
+
+      if (quantityInt > 1) {
+        const card = buttonToClick.closest<HTMLElement>('[class*="product-item-card"], .cardproduct, .product-main, .product-details');
+        const qtyInput = card?.querySelector<HTMLInputElement>('input[data-testid="numeric-up-down-input"], input.qtyList, input[name="qty"]');
+        
+        if (qtyInput) {
+          const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+          nativeInputValueSetter?.call(qtyInput, quantityInt.toString());
+          qtyInput.dispatchEvent(new Event('input', { bubbles: true }));
+          qtyInput.dispatchEvent(new Event('change', { bubbles: true }));
+          await randomDelay(400, 700); // Jitter para sincronización de estado en React
+        } else {
+          console.warn(LOGP, 'Input de cantidad no encontrado, usando clics múltiples (fallback).');
+          for (let i = 1; i < quantityInt; i++) {
+            buttonToClick.click();
+            await randomDelay(1500, 2500);
+          }
         }
-        await randomDelay(800, 1500);
-        console.log(LOGP, 'Producto agregado correctamente al carrito.');
-        products.shift();
-        setQueue(products);
-        processNextProduct();
       }
+
+      buttonToClick.click();
+      await randomDelay(2500, 3500); // Rate limiting dinámico final
+      console.log(LOGP, 'Producto agregado correctamente al carrito.');
+      products.shift();
+      setQueue(products);
+      processNextProduct();
     } else {
       if (attempts < 10) {
         console.warn(LOGP, `Intento ${attempts}: Botón AddToCart no encontrado. Reintentando...`);
         // Mostrar cooldown y permitir saltar
+        let isSkipped = false;
         try {
           setCooldown(`Buscando Botón (intento ${attempts+1}/10)`, 1500, () => {
+            isSkipped = true;
             try {
               const products = get()!.queue.products.slice();
               const skipped = products.shift();
@@ -117,7 +127,13 @@ const LOGP = '[NV TM]';
             processNextProduct();
           });
         } catch(e) { log('debug', 'Error during cooldown setup', e); }
-        setTimeout(() => { hideCooldown(); checkForProductButton(attempts + 1); }, 1500);
+        setTimeout(() => { 
+          if (isSkipped) return;
+          hideCooldown(); 
+          if (get()?.flags.isAddingProducts) {
+            checkForProductButton(attempts + 1);
+          }
+        }, 1500);
       } else {
         try {
           const hints = {
@@ -202,7 +218,7 @@ const LOGP = '[NV TM]';
       const mo = new MutationObserver(() => {
         if (window.__nvUiObserverPaused) return;
         if (window.__nvUiObserverTimer) return;
-        window.__nvUiObserverTimer = setTimeout(() => {
+        window.__nvUiObserverTimer = window.setTimeout(() => {
           try { window.__nvUiObserverTimer = null; } catch(e) { log('debug', 'Error clearing timer flag', e); }
           if (!document.getElementById('productsInputContainer') ||
               !document.getElementById('minimizedBar')) {
